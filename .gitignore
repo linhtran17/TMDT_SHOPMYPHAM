@@ -1,0 +1,11 @@
+# Node / Angular
+node_modules
+dist
+.angular
+# Java / Spring
+target
+.mvn/wrapper/maven-wrapper.jar
+# OS/IDE
+.DS_Store
+.idea
+.vscode
