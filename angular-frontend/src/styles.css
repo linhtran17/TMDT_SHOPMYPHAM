@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply bg-pink-50/30 text-slate-800 font-sans; }
+}
+
+@layer components {
+  .container   { @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .card        { @apply rounded-2xl border border-slate-200 bg-white shadow-sm transition; }
+  .card-hover  { @apply hover:shadow-xl hover:-translate-y-0.5; }
+
+  .btn         { @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium shadow-sm transition hover:shadow; }
+  .btn-primary { @apply border-pink-600 bg-pink-600 text-white hover:bg-pink-700; }
+  .btn-ghost   { @apply bg-transparent; }
+  .btn-outline { @apply border-pink-600 text-pink-700 hover:bg-pink-50; }
+
+  .nav-link    { @apply px-3 py-2 rounded-xl text-slate-600 hover:bg-pink-50 hover:text-slate-900 transition; }
+  .nav-active  { @apply bg-pink-100 text-slate-900; }
+
+  .chip        { @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 hover:bg-pink-50 hover:text-slate-900 transition; }
+  .section-title { @apply mb-4 text-xl font-extrabold tracking-tight text-slate-900; }
+  .price         { @apply text-pink-600 font-extrabold; }
+
+  .inp         { @apply rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200; }
+}

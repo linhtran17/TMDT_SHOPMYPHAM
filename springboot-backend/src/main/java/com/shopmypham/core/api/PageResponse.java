@@ -1,3 +1,14 @@
 package com.shopmypham.core.api;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
 import java.util.List;
-public record PageResponse<T>(List<T> items, long total, int page, int size) {}
+
+@Data @AllArgsConstructor
+public class PageResponse<T> {
+  private List<T> items;
+  private long total;
+  private int page;
+  private int size;
+}

@@ -1,9 +1,74 @@
 package com.shopmypham.modules.product;
+import java.util.Map;
+
 import com.shopmypham.core.api.ApiResponse;
+import com.shopmypham.core.api.PageResponse;
+import com.shopmypham.modules.product.dto.ProductRequest;
+import com.shopmypham.modules.product.dto.ProductResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-@RestController @RequestMapping("/products")
+
+@RestController
+@RequestMapping("/api/products") // <<< ĐÚNG PREFIX
+@RequiredArgsConstructor
 public class ProductController {
-  @GetMapping("/ping") public ApiResponse<String> ping(){
-    return new ApiResponse<>(true,"product-ok",null);
+  private final ProductService service;
+
+  @GetMapping
+  public ApiResponse<PageResponse<ProductResponse>> search(
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) Long categoryId,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "12") int size
+  ) {
+    return ApiResponse.ok(service.search(q, categoryId, page, size));
   }
+
+  @GetMapping("/{id}")
+  public ApiResponse<ProductResponse> get(@PathVariable Long id) {
+    return ApiResponse.ok(service.get(id));
+  }
+
+  @PostMapping
+  @PreAuthorize("hasAuthority('product:create')")
+  public ApiResponse<Long> create(@Valid @RequestBody ProductRequest req) {
+    return ApiResponse.ok(service.create(req));
+  }
+
+  @PutMapping("/{id}")
+  @PreAuthorize("hasAuthority('product:update')")
+  public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
+    service.update(id, req); return ApiResponse.ok();
+  }
+
+  @DeleteMapping("/{id}")
+  @PreAuthorize("hasAuthority('product:delete')")
+  public ApiResponse<Void> delete(@PathVariable Long id) {
+    service.delete(id); return ApiResponse.ok();
+  }
+
+  // Gắn ảnh (sau khi FE upload Cloudinary xong)
+// Gắn ảnh (sau khi FE upload Cloudinary xong)
+@PostMapping("/{id}/images")
+@PreAuthorize("hasAuthority('product:update')")
+public ApiResponse<Long> addImage(
+    @PathVariable Long id,
+    @RequestBody Map<String, Object> body
+){
+  String url = (String) body.get("url");
+  String publicId = (String) body.get("publicId");
+  String alt = (String) body.getOrDefault("alt", "");
+  Integer sortOrder = body.get("sortOrder")==null?0: ((Number)body.get("sortOrder")).intValue();
+  if (url==null || url.isBlank()) throw new com.shopmypham.core.exception.BadRequestException("Thiếu url ảnh");
+  return ApiResponse.ok(service.addImage(id, url, publicId, alt, sortOrder));
+}
+
+@DeleteMapping("/images/{imageId}")
+@PreAuthorize("hasAuthority('product:update')")
+public ApiResponse<Void> deleteImage(@PathVariable Long imageId){
+  service.deleteImage(imageId); return ApiResponse.ok();
+}
+
 }

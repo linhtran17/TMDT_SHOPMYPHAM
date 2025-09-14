@@ -1,1 +1,1 @@
-export const environment = { production: true, apiBase: '/api' };
+export const environment = { production: true, apiBase: '' };

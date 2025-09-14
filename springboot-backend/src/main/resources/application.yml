@@ -1,28 +1,39 @@
 server:
   port: 8080
-  servlet:
-    context-path: /api
 
 spring:
+  application:
+    name: springboot-backend
+
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/shopmypham?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&serverTimezone=UTC
-    username: root
-    password: ABC1234
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/shoppmypham?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${DB_USER:root}
+    password: ${DB_PASS:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
-    open-in-view: false
+        format_sql: ${JPA_FORMAT_SQL:false}
 
-  flyway:
-    enabled: false  # bật lại khi cần migration
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:15MB}
+      max-request-size: ${MAX_REQUEST_SIZE:20MB}
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key:    ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+  root-folder: ${CLOUDINARY_ROOT_FOLDER:shop}
 
 logging:
   level:
     root: INFO
     com.shopmypham: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %-40logger{36} : %msg%n"
