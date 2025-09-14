@@ -1,0 +1,488 @@
+-- Tạo database
+CREATE DATABASE IF NOT EXISTS shoppmypham
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE shoppmypham;
+
+-- Bảng roles
+CREATE TABLE IF NOT EXISTS roles (
+  id   BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng permissions
+CREATE TABLE IF NOT EXISTS permissions (
+  id   BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(150) NOT NULL UNIQUE,
+  description VARCHAR(255)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng users
+CREATE TABLE IF NOT EXISTS users (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  full_name    VARCHAR(255),
+  email        VARCHAR(255) NOT NULL UNIQUE,
+  password     VARCHAR(255) NOT NULL,
+  phone        VARCHAR(20),
+  address      TEXT,
+  avatar_url   VARCHAR(500),
+  enabled      TINYINT(1) DEFAULT 1,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng user_roles
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng role_permissions
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_id       BIGINT NOT NULL,
+  permission_id BIGINT NOT NULL,
+  PRIMARY KEY (role_id, permission_id),
+  CONSTRAINT fk_rp_role FOREIGN KEY (role_id) REFERENCES roles(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES permissions(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng categories
+CREATE TABLE IF NOT EXISTS categories (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  parent_id   BIGINT NULL,
+  name        VARCHAR(150) NOT NULL,
+  slug        VARCHAR(200) UNIQUE,
+  description VARCHAR(255),
+  image_url   VARCHAR(500),
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cat_parent FOREIGN KEY (parent_id) REFERENCES categories(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng products
+CREATE TABLE IF NOT EXISTS products (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name         VARCHAR(255) NOT NULL,
+  sku          VARCHAR(100) UNIQUE,
+  price        DECIMAL(19,2) NOT NULL,
+  sale_price   DECIMAL(19,2) NULL,
+  stock        INT DEFAULT 0,
+  description  TEXT,
+  short_desc   VARCHAR(500),
+  category_id  BIGINT NOT NULL,
+  featured     TINYINT(1) DEFAULT 0,
+  active       TINYINT(1) DEFAULT 1,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng product_images
+CREATE TABLE IF NOT EXISTS product_images (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  url         VARCHAR(1024) NOT NULL,
+  public_id   VARCHAR(255) NULL,
+  alt         VARCHAR(255),
+  sort_order  INT DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_img_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng product_attributes
+CREATE TABLE IF NOT EXISTS product_attributes (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  name        VARCHAR(100) NOT NULL,
+  value       VARCHAR(255) NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_attr_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng banners
+CREATE TABLE IF NOT EXISTS banners (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title       VARCHAR(255),
+  image_url   VARCHAR(1024) NOT NULL,
+  public_id   VARCHAR(255),
+  link        VARCHAR(1024),
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng carts
+CREATE TABLE IF NOT EXISTS carts (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng cart_items
+CREATE TABLE IF NOT EXISTS cart_items (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  cart_id    BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity   INT NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ci_cart FOREIGN KEY (cart_id) REFERENCES carts(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ci_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng orders
+CREATE TABLE IF NOT EXISTS orders (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_code   VARCHAR(50) NOT NULL UNIQUE,
+  user_id      BIGINT NOT NULL,
+  total_amount DECIMAL(19,2) NOT NULL,
+  status       ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+  payment_method VARCHAR(50),
+  payment_status ENUM('pending', 'paid', 'failed') DEFAULT 'pending',
+  customer_name VARCHAR(255) NOT NULL,
+  customer_email VARCHAR(255) NOT NULL,
+  customer_phone VARCHAR(20) NOT NULL,
+  shipping_address TEXT NOT NULL,
+  note TEXT,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng order_items
+CREATE TABLE IF NOT EXISTS order_items (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id     BIGINT NOT NULL,
+  product_id   BIGINT NOT NULL,
+  product_name VARCHAR(255) NOT NULL,
+  product_price DECIMAL(19,2) NOT NULL,
+  quantity     INT NOT NULL,
+  total        DECIMAL(19,2) NOT NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng reviews
+CREATE TABLE IF NOT EXISTS reviews (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  user_id     BIGINT NOT NULL,
+  order_id    BIGINT NOT NULL,
+  rating      TINYINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment     TEXT,
+  status      ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_review_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_review_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng wishlists
+CREATE TABLE IF NOT EXISTS wishlists (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_wishlist_user_product (user_id, product_id),
+  CONSTRAINT fk_wishlist_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_wishlist_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng coupons
+CREATE TABLE IF NOT EXISTS coupons (
+  id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+  code          VARCHAR(50) NOT NULL UNIQUE,
+  description   TEXT,
+  discount_type ENUM('percentage', 'fixed') DEFAULT 'percentage',
+  discount_value DECIMAL(10,2) NOT NULL,
+  min_order_amount DECIMAL(19,2) DEFAULT 0,
+  max_discount_amount DECIMAL(19,2) DEFAULT NULL,
+  start_date    DATETIME NOT NULL,
+  end_date      DATETIME NOT NULL,
+  usage_limit   INT DEFAULT NULL,
+  used_count    INT DEFAULT 0,
+  active        TINYINT(1) DEFAULT 1,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng coupon_usage
+CREATE TABLE IF NOT EXISTS coupon_usage (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  coupon_id  BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  order_id   BIGINT NOT NULL,
+  used_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_coupon_usage_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_coupon_usage_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_coupon_usage_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng news
+CREATE TABLE IF NOT EXISTS news (
+  id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title          VARCHAR(255) NOT NULL,
+  slug           VARCHAR(180) NOT NULL UNIQUE,
+  cover_image_url VARCHAR(500),
+  excerpt        VARCHAR(500),
+  content        LONGTEXT,
+  author_id      BIGINT NOT NULL,
+  active         BIT DEFAULT 1,
+  published_at   TIMESTAMP NULL,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_news_author FOREIGN KEY (author_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng faqs
+CREATE TABLE IF NOT EXISTS faqs (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng support_tickets
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  ticket_code  VARCHAR(50) NOT NULL UNIQUE,
+  user_id      BIGINT NOT NULL,
+  subject      VARCHAR(255) NOT NULL,
+  message      TEXT NOT NULL,
+  status       ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+  priority     ENUM('low', 'medium', 'high') DEFAULT 'medium',
+  assigned_to  BIGINT NULL,
+  resolved_at  DATETIME NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ticket_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ticket_assignee FOREIGN KEY (assigned_to) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bảng ticket_replies
+CREATE TABLE IF NOT EXISTS ticket_replies (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  ticket_id   BIGINT NOT NULL,
+  user_id     BIGINT NOT NULL,
+  message     TEXT NOT NULL,
+  is_internal TINYINT(1) DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_reply_ticket FOREIGN KEY (ticket_id) REFERENCES support_tickets(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_reply_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tạo indexes
+CREATE INDEX idx_products_name ON products(name);
+CREATE INDEX idx_products_category ON products(category_id);
+CREATE INDEX idx_products_featured ON products(featured);
+CREATE INDEX idx_products_active ON products(active);
+CREATE INDEX idx_cat_parent ON categories(parent_id);
+CREATE INDEX idx_cat_active ON categories(active);
+CREATE INDEX idx_pimg_product ON product_images(product_id);
+CREATE INDEX idx_banner_active ON banners(active, sort_order);
+
+CREATE INDEX idx_orders_user ON orders(user_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_order_items_order ON order_items(order_id);
+CREATE INDEX idx_reviews_product ON reviews(product_id);
+CREATE INDEX idx_reviews_user ON reviews(user_id);
+CREATE INDEX idx_reviews_status ON reviews(status);
+CREATE INDEX idx_wishlists_user ON wishlists(user_id);
+CREATE INDEX idx_coupons_active ON coupons(active, end_date);
+CREATE INDEX idx_news_active ON news(active, published_at);
+CREATE INDEX idx_tickets_user ON support_tickets(user_id);
+CREATE INDEX idx_tickets_status ON support_tickets(status);
+CREATE INDEX idx_ticket_replies_ticket ON ticket_replies(ticket_id);
+
+-- Thêm dữ liệu mẫu
+
+-- Thêm roles
+INSERT IGNORE INTO roles(name) VALUES 
+('ROLE_ADMIN'), 
+('ROLE_USER'), 
+('ROLE_SELLER');
+
+-- Thêm permissions
+INSERT IGNORE INTO permissions(name, description) VALUES
+('product:read', 'Xem sản phẩm'),
+('product:create', 'Tạo sản phẩm'),
+('product:update', 'Sửa sản phẩm'),
+('product:delete', 'Xoá sản phẩm'),
+('category:read', 'Xem danh mục'),
+('category:create', 'Tạo danh mục'),
+('category:update', 'Sửa danh mục'),
+('category:delete', 'Xoá danh mục'),
+('user:read', 'Xem người dùng'),
+('user:update', 'Sửa người dùng'),
+('user:delete', 'Xoá người dùng'),
+('banner:read', 'Xem banner'),
+('banner:create', 'Tạo banner'),
+('banner:update', 'Sửa banner'),
+('banner:delete', 'Xoá banner'),
+('media:upload', 'Upload media'),
+('media:delete', 'Delete media'),
+('news:read', 'Xem tin tức'),
+('news:create', 'Tạo tin tức'),
+('news:update', 'Sửa tin tức'),
+('news:delete', 'Xoá tin tức');
+
+
+('order:read', 'Xem đơn hàng'),
+('order:update', 'Cập nhật đơn hàng'),
+('order:delete', 'Xoá đơn hàng'),
+('coupon:read', 'Xem coupon'),
+('coupon:create', 'Tạo coupon'),
+('coupon:update', 'Sửa coupon'),
+('coupon:delete', 'Xoá coupon'),
+('review:read', 'Xem đánh giá'),
+('review:update', 'Cập nhật đánh giá'),
+('review:delete', 'Xoá đánh giá'),
+('ticket:read', 'Xem ticket'),
+('ticket:update', 'Cập nhật ticket'),
+('ticket:delete', 'Xoá ticket');
+INSERT IGNORE INTO permissions(name, description) VALUES
+('role:read','Xem vai trò'),
+('role:create','Tạo vai trò'),
+('role:update','Sửa vai trò'),
+('role:delete','Xoá vai trò'),
+('permission:read','Xem danh sách quyền');
+
+
+-- Gán quyền cho admin
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.name='ROLE_ADMIN';
+
+-- Gán quyền cho user
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r
+JOIN permissions p ON p.name IN ('product:read', 'category:read', 'banner:read', 'news:read')
+WHERE r.name='ROLE_USER';
+
+-- Gán quyền cho seller
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r
+JOIN permissions p ON p.name IN (
+  'product:read', 'product:create', 'product:update', 
+  'category:read', 'order:read', 'order:update',
+  'banner:read', 'news:read', 'review:read'
+)
+WHERE r.name='ROLE_SELLER';
+
+-- Thêm user admin mẫu (password: admin123)
+INSERT IGNORE INTO users (full_name, email, password, phone, address, enabled) VALUES
+('Quản trị viên', 'admin@shopmypham.com', '$2a$10$rL7.6LciLq3Qkq6J4L8fE.BQe6X7n6q1VzJx8KJ6v6Z6J6v6J6v6', '0123456789', 'Hà Nội', 1);
+
+-- Gán role admin cho user
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id FROM users u, roles r 
+WHERE u.email='admin@shopmypham.com' AND r.name='ROLE_ADMIN';
+
+-- Thêm danh mục
+INSERT IGNORE INTO categories(name, slug, description) VALUES
+('Trang điểm', 'trang-diem', 'Makeup'),
+('Chăm sóc da', 'cham-soc-da', 'Skincare'),
+('Chăm sóc tóc', 'cham-soc-toc', 'Haircare'),
+('Chăm sóc cơ thể', 'cham-soc-co-the', 'Body care'),
+('Nước hoa', 'nuoc-hoa', 'Fragrance'),
+('Dụng cụ & Phụ kiện', 'dung-cu-phu-kien', 'Tools & accessories');
+
+-- Thêm danh mục con
+INSERT IGNORE INTO categories(parent_id, name, slug, description) VALUES
+-- Trang điểm (id = 1)
+(1, 'Trang điểm mặt', 'trang-diem-mat', 'Face makeup'),
+(1, 'Trang điểm mắt', 'trang-diem-mat-eye', 'Eye makeup'),
+(1, 'Trang điểm môi', 'trang-diem-moi', 'Lip makeup'),
+-- Chăm sóc da (id = 2)
+(2, 'Tẩy trang', 'tay-trang', 'Makeup remover'),
+(2, 'Sữa rửa mặt', 'sua-rua-mat', 'Facial cleanser'),
+(2, 'Toner/Cân bằng da', 'toner-can-bang-da', 'Toner'),
+(2, 'Serum/Tinh chất', 'serum-tinh-chat', 'Serum'),
+(2, 'Kem dưỡng', 'kem-duong', 'Moisturizer'),
+(2, 'Chống nắng', 'chong-nang', 'Sunscreen'),
+(2, 'Mặt nạ', 'mat-na', 'Face mask'),
+-- Chăm sóc tóc (id = 3)
+(3, 'Dầu gội', 'dau-goi', 'Shampoo'),
+(3, 'Dầu xả', 'dau-xa', 'Conditioner'),
+(3, 'Ủ/Dưỡng tóc', 'u-duong-toc', 'Hair treatment'),
+-- Chăm sóc cơ thể (id = 4)
+(4, 'Sữa tắm', 'sua-tam', 'Body wash'),
+(4, 'Dưỡng thể', 'duong-the', 'Body lotion'),
+(4, 'Khử mùi', 'khu-mui', 'Deodorant'),
+-- Nước hoa (id = 5)
+(5, 'Nước hoa nữ', 'nuoc-hoa-nu', 'Women fragrance'),
+(5, 'Nước hoa nam', 'nuoc-hoa-nam', 'Men fragrance'),
+-- Dụng cụ & Phụ kiện (id = 6)
+(6, 'Cọ trang điểm', 'co-trang-diem', 'Makeup brushes'),
+(6, 'Bông tẩy trang', 'bong-tay-trang', 'Cotton pads'),
+(6, 'Máy rửa mặt', 'may-rua-mat', 'Facial cleansing brush');
+
+-- Thêm sản phẩm mẫu
+INSERT IGNORE INTO products (name, sku, price, sale_price, stock, description, short_desc, category_id, featured) VALUES
+('Son môi đỏ lì MAC Ruby Woo', 'SKU-SON-001', 450000, 420000, 100, 'Son môi đỏ lì nổi tiếng của MAC, bám màu lâu, không trôi màu', 'Son lì MAC Ruby Woo - Đỏ quyến rũ', 3, 1),
+('Kem nền Maybelline Fit Me', 'SKU-KN-001', 220000, NULL, 80, 'Kem nền tự nhiên, che phủ khuyết điểm tốt, không gây bí da', 'Kem nền Maybelline Fit Me - Tự nhiên', 1, 1),
+('Sữa rửa mặt Cetaphil Gentle', 'SKU-SRM-001', 150000, 135000, 200, 'Sữa rửa mặt dịu nhẹ phù hợp da nhạy cảm, làm sạch sâu không gây kích ứng', 'Sữa rửa mặt Cetaphil cho da nhạy cảm', 6, 0),
+('Kem dưỡng ẩm CeraVe Moisturizing Cream', 'SKU-KD-001', 350000, 320000, 150, 'Kem dưỡng ẩm phục hồi hàng rào bảo vệ da, không chứa hương liệu', 'Kem dưỡng ẩm CeraVe cho da khô', 9, 1),
+('Dầu gội Head & Shoulders', 'SKU-DG-001', 120000, NULL, 120, 'Dầu gội trị gàu hiệu quả, mát lạnh da đầu, giảm ngứa', 'Dầu gội Head & Shoulders trị gàu', 13, 0),
+('Dầu xả Pantene Pro-V', 'SKU-DX-001', 130000, 115000, 100, 'Dầu xả giúp tóc mềm mượt, chắc khỏe, không xơ rối', 'Dầu xả Pantene Pro-V dưỡng mượt tóc', 14, 0),
+('Sữa tắm Dove dưỡng ẩm', 'SKU-ST-001', 110000, NULL, 180, 'Sữa tắm dưỡng ẩm, cho làn da mềm mại, không khô ráp', 'Sữa tắm Dove dưỡng ẩm cho da', 16, 0),
+('Nước hoa Dior Sauvage 100ml', 'SKU-NH-001', 3200000, 2990000, 50, 'Hương nước hoa nam tính, quyến rũ, lưu hương lâu', 'Nước hoa Dior Sauvage cho nam', 19, 1),
+('Nước hoa Chanel Coco Mademoiselle 50ml', 'SKU-NH-002', 2800000, 2650000, 40, 'Nước hoa nữ sang trọng, quyến rũ, hương hoa cỏ tinh tế', 'Nước hoa Chanel Coco Mademoiselle cho nữ', 18, 1),
+('Cọ trang điểm Real Techniques', 'SKU-PK-001', 180000, 160000, 90, 'Cọ trang điểm chuyên nghiệp, lông mềm mịn, không rụng lông', 'Bộ cọ trang điểm Real Techniques', 21, 0);
+
+-- Thêm banners
+INSERT IGNORE INTO banners (title, image_url, link, sort_order, active) VALUES
+('Khuyến mãi đặc biệt', '/images/banners/banner1.jpg', '/promotion', 1, 1),
+('Sản phẩm mới', '/images/banners/banner2.jpg', '/new-products', 2, 1),
+('Chăm sóc da mùa hè', '/images/banners/banner3.jpg', '/skincare', 3, 1);
+
+-- Thêm FAQs
+INSERT IGNORE INTO faqs (question, answer, sort_order) VALUES
+('Làm thế nào để đặt hàng?', 'Bạn có thể đặt hàng trực tuyến bằng cách thêm sản phẩm vào giỏ hàng và tiến hành thanh toán.', 1),
+('Thời gian giao hàng là bao lâu?', 'Thời gian giao hàng từ 2-5 ngày làm việc tùy vào khu vực.', 2),
+('Tôi có thể đổi trả sản phẩm không?', 'Chúng tôi chấp nhận đổi trả trong vòng 7 ngày nếu sản phẩm còn nguyên seal, hộp.', 3);
+
+-- Thêm coupons
+INSERT IGNORE INTO coupons (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, start_date, end_date, usage_limit, active) VALUES
+('WELCOME10', 'Giảm 10% cho đơn hàng đầu tiên', 'percentage', 10, 200000, 50000, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1000, 1),
+('FREESHIP', 'Miễn phí vận chuyển', 'fixed', 30000, 300000, 30000, NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY), 500, 1),
+('SALE20', 'Giảm 20% cho đơn hàng từ 500K', 'percentage', 20, 500000, 150000, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 200, 1);
