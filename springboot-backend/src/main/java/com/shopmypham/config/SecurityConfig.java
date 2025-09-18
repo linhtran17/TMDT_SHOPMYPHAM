@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/config/SecurityConfig.java
 package com.shopmypham.config;
 
 import com.shopmypham.modules.auth.JwtAuthenticationFilter;
@@ -39,27 +38,29 @@ public class SecurityConfig {
   private final JwtService jwtService;
 
   @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
-  }
+  public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
   @Bean
   public UserDetailsService userDetailsService() {
-    return email -> userRepo.findByEmail(email).map(u -> {
+    return email -> userRepo.findByEmailWithRolesAndPerms(email).map(u -> {
       var authorities = new ArrayList<SimpleGrantedAuthority>();
-      var roles = (u.getRoles() == null ? List.<Role>of() : u.getRoles());
+
+      var roles = (u.getRoles()==null? List.<Role>of() : u.getRoles());
       for (Role r : roles) {
-        if (r != null && r.getName() != null) {
-          authorities.add(new SimpleGrantedAuthority(r.getName()));
-          if (r.getPermissions() != null) {
+        if (r!=null && r.getName()!=null) {
+          String raw = r.getName().trim();
+          String springRole = raw.startsWith("ROLE_") ? raw : "ROLE_" + raw; // ✅ luôn ROLE_
+          authorities.add(new SimpleGrantedAuthority(springRole));
+          if (r.getPermissions()!=null) {
             r.getPermissions().forEach(p -> {
-              if (p != null && p.getName() != null) {
-                authorities.add(new SimpleGrantedAuthority(p.getName()));
+              if (p!=null && p.getName()!=null) {
+                authorities.add(new SimpleGrantedAuthority(p.getName().trim())); // ✅ permissions
               }
             });
           }
         }
       }
+
       return org.springframework.security.core.userdetails.User
           .withUsername(u.getEmail())
           .password(u.getPassword())
@@ -89,35 +90,25 @@ public class SecurityConfig {
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
-    http.csrf(csrf -> csrf.disable());
-    http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
-    http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-    http.authenticationProvider(authenticationProvider());
-
-    http.authorizeHttpRequests(auth -> auth
-        // Preflight
-        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-        // Auth
-        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
-
-        // PUBLIC (khách truy cập)
-        .requestMatchers(HttpMethod.GET,
-            "/api/banners/public",
-            "/api/news/public/**",
-            "/api/categories/tree",
-            "/api/products/**",
-            "/api/flash-sales/**",
-            // 👇 Thêm whitelist cho tồn kho đọc:
-            "/api/inventory/stock/**"
-        ).permitAll()
-
-        // Mọi API còn lại cần ĐĂNG NHẬP (quyền chi tiết do @PreAuthorize trong controller)
-        .requestMatchers("/api/**").authenticated()
-
-        // Tài nguyên khác (nếu có)
-        .anyRequest().permitAll()
-    );
+    http.csrf(csrf -> csrf.disable())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authenticationProvider(authenticationProvider())
+        .authorizeHttpRequests(auth -> auth
+          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+          .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+          .requestMatchers(HttpMethod.GET,
+              "/api/banners/public",
+              "/api/news/public/**",
+              "/api/categories/tree",
+              "/api/products/**",
+              "/api/flash-sales/**",
+              "/api/inventory/stock/**"
+          ).permitAll()
+          .requestMatchers("/api/admin/**").hasRole("ADMIN")   // ✅ ROLE_ADMIN
+          .requestMatchers("/api/**").authenticated()
+          .anyRequest().permitAll()
+        );
 
     http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
     return http.build();
@@ -126,8 +117,8 @@ public class SecurityConfig {
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
-    cors.setAllowedOrigins(List.of("http://localhost:4200", "http://localhost:5173"));
-    cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    cors.setAllowedOrigins(List.of("http://localhost:4200","http://localhost:5173"));
+    cors.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
     cors.setAllowedHeaders(List.of("*"));
     cors.setAllowCredentials(true);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

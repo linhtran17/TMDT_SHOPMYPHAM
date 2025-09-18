@@ -321,7 +321,8 @@ export class HeaderComponent implements AfterViewInit {
     });
 
     this.updateCartCount();
-    window.addEventListener('storage', (e) => { if (e.key === 'cart') this.updateCartCount(); });
+window.addEventListener('storage', (e) => { if (e.key === 'cart') this.updateCartCount(); });
+window.addEventListener('cart:updated', () => this.updateCartCount());
   }
 
   ngAfterViewInit(){ this.compact.set(window.scrollY > 80); }
@@ -336,13 +337,19 @@ export class HeaderComponent implements AfterViewInit {
   @HostListener('document:keydown.escape') onEsc(){ this.closeAll(); }
 
   private updateCartCount(){
-    try{
-      const raw = localStorage.getItem('cart');
-      const arr = raw ? JSON.parse(raw) : [];
-      const total = Array.isArray(arr) ? arr.reduce((s:number,it:any)=> s + Number(it?.qty || 1), 0) : 0;
-      this.cartCount.set(total);
-    }catch{ this.cartCount.set(0); }
-  }
+  try{
+    const raw = localStorage.getItem('cart');
+    const obj = raw ? JSON.parse(raw) : null;
+    let total = 0;
+    if (obj && typeof obj.count === 'number') {
+      total = obj.count;
+    } else if (Array.isArray(obj)) {
+      total = obj.reduce((s:number,it:any)=> s + Number(it?.qty || 1), 0);
+    }
+    this.cartCount.set(total);
+  }catch{ this.cartCount.set(0); }
+}
+
 
   closeAll(){ this.open.set(false); this.acctOpen.set(false); }
   onSearch(){ const q=(this.q||'').trim(); this.router.navigate(['/products'],{ queryParams:{ q, page:1 }}); this.closeAll(); }

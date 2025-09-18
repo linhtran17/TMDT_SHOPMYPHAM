@@ -1,4 +1,5 @@
 export const environment = {
   production: false,
-  apiBase: '' // dùng proxy /api → backend http://localhost:8080
+  // đổi host/port theo BE của bạn
+  apiBase: 'http://localhost:8080'
 };

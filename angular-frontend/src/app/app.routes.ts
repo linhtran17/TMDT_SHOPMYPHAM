@@ -6,6 +6,7 @@ import { HomePageComponent } from './features/home/home-page.component';
 import { LoginComponent } from './features/auth/login.component';
 import { SignupComponent } from './features/auth/signup.component';
 import { adminGuard } from './core/guards/admin.guard';
+import { authGuard } from './core/guards/auth.guard';  
 
 export const routes: Routes = [
   {
@@ -28,6 +29,14 @@ export const routes: Routes = [
       { path: 'news/:slug', loadComponent: () => import('./features/news/news-detail.component').then(m => m.NewsDetailComponent) },
       { path: 'about', loadComponent: () => import('./shared/components/about/about-page.component').then(m => m.AboutPageComponent) },
       { path: 'contact', loadComponent: () => import('./features/contact/contact-page.component').then(m => m.ContactPageComponent) },
+      { path: 'orders', loadComponent: () => import('./features/orders/my-orders.page').then(m => m.MyOrdersPage), canActivate: [authGuard] },
+{ path: 'account', loadComponent: () => import('./features/account/account.page').then(m => m.AccountPage) },
+
+     // CẦN ĐĂNG NHẬP
+      { path: 'cart', loadComponent: () => import('./features/cart/cart.page').then(m => m.CartPage), canActivate: [authGuard] },
+      { path: 'checkout', loadComponent: () => import('./features/checkout/checkout.page').then(m => m.CheckoutPage), canActivate: [authGuard] },
+      { path: 'orders/:id', loadComponent: () => import('./features/orders/order-detail.page').then(m => m.OrderDetailPage), canActivate: [authGuard] },
+      
     ],
   },
 
@@ -62,6 +71,8 @@ export const routes: Routes = [
       { path: 'inventory/receive', loadComponent: () => import('./features/admin/inventory/admin-inventory-new.page').then(m => m.AdminInventoryNewPageComponent) },
       // Giữ link cũ
       { path: 'inventory/new', pathMatch: 'full', redirectTo: 'inventory/receive' },
+      { path: 'orders', loadComponent: () => import('./features/admin/orders/admin-orders-list.page').then(m => m.AdminOrdersListPageComponent) },
+
     ],
   },
 

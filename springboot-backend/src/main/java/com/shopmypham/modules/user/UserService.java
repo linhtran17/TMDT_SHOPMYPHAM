@@ -39,12 +39,13 @@ public class UserService {
 
     return new PageImpl<>(filtered, pageable, all.getTotalElements());
   }
-  @Transactional(readOnly = true)
-  public User get(Long id){
-    // 👉 nạp sẵn roles khi get chi tiết
-    return repo.findWithRolesById(id)
-        .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
-  }
+ @Transactional(readOnly = true)
+public User get(Long id){
+  // nạp sẵn roles + permissions
+  return repo.findWithRolesAndPermsById(id)
+      .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
+}
+
 
   @Transactional
   public Long create(String fullName, String email, String rawPassword,

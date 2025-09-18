@@ -1,41 +1,43 @@
 package com.shopmypham.modules.user;
 
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-/**
- * Repository cho bảng users.
- */
 public interface UserRepository extends JpaRepository<User, Long> {
 
-  /**
-   * Tìm user theo email, nạp sẵn roles và permissions để tránh LazyInitializationException.
-   */
-  @EntityGraph(attributePaths = {"roles", "roles.permissions"})
   Optional<User> findByEmail(String email);
-
-  /** Check email đã tồn tại. */
   boolean existsByEmail(String email);
 
-  /**
-   * Phân trang user, nạp sẵn roles và permissions.
-   * Lưu ý: dùng method này thay cho findAll(pageable) mặc định nếu bạn muốn eager load các quan hệ.
-   */
-  @EntityGraph(attributePaths = {"roles", "roles.permissions"})
+  // dùng khi xóa role để chặn nếu đang được user dùng
+  boolean existsByRoles_Id(Long roleId);
+
+  // Trang danh sách: nạp sẵn roles để tránh N+1
+  @EntityGraph(attributePaths = "roles")
   Page<User> findAllBy(Pageable pageable);
 
-  /**
-   * Lấy chi tiết user theo id, nạp sẵn roles và permissions.
-   */
-  @EntityGraph(attributePaths = {"roles", "roles.permissions"})
-  Optional<User> findWithRolesById(Long id);
+  // Chi tiết theo id: nạp sẵn roles + permissions
+  @Query("""
+      select distinct u
+      from User u
+      left join fetch u.roles r
+      left join fetch r.permissions p
+      where u.id = :id
+      """)
+  Optional<User> findWithRolesAndPermsById(@Param("id") Long id);
 
-  /**
-   * Kiểm tra có user nào đang dùng roleId hay không (phục vụ xóa vai trò an toàn).
-   */
-  boolean existsByRoles_Id(Long roleId);
+  // Theo email: nạp sẵn roles + permissions (dùng cho security)
+  @Query("""
+      select distinct u
+      from User u
+      left join fetch u.roles r
+      left join fetch r.permissions p
+      where lower(u.email) = lower(:email)
+      """)
+  Optional<User> findByEmailWithRolesAndPerms(@Param("email") String email);
 }
