@@ -1,11 +1,10 @@
-// src/main/java/com/shopmypham/modules/auth/AuthService.java
 package com.shopmypham.modules.auth;
 
 import com.shopmypham.modules.auth.dto.AuthResponse;
 import com.shopmypham.modules.auth.dto.LoginRequest;
 import com.shopmypham.modules.auth.dto.RegisterRequest;
-import com.shopmypham.modules.user.User;             // <— dùng entity ở module user
-import com.shopmypham.modules.user.UserRepository;  // <— đổi package
+import com.shopmypham.modules.user.User;
+import com.shopmypham.modules.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -13,6 +12,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -22,25 +22,32 @@ import java.util.stream.Collectors;
 public class AuthService {
 
   private final AuthenticationManager authManager;
-  private final UserRepository userRepo;     // <— repo mới
+  private final UserRepository userRepo;
   private final RoleRepository roleRepo;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
 
+  @Transactional(readOnly = true)
   public AuthResponse login(LoginRequest req) {
     authManager.authenticate(
         new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword()));
 
-    var u = userRepo.findByEmail(req.getEmail())
+    // NẠP SẴN roles (+permissions nếu cần) để tránh lazy
+    var u = userRepo.findByEmailWithRolesAndPerms(req.getEmail())
         .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
     String token = jwtService.generateToken(u.getEmail());
-    Set<String> roles = (u.getRoles()==null? Set.<Role>of(): u.getRoles())
-        .stream().map(Role::getName).collect(Collectors.toSet());
+
+    // Trả về tên role (không cần permissions ở đây)
+    Set<String> roles = (u.getRoles() == null ? Set.<Role>of() : u.getRoles())
+        .stream()
+        .map(Role::getName)
+        .collect(Collectors.toSet());
 
     return new AuthResponse(token, u.getEmail(), roles);
   }
 
+  @Transactional
   public Long register(RegisterRequest req) {
     if (userRepo.existsByEmail(req.getEmail())) {
       throw new IllegalArgumentException("Email đã tồn tại");

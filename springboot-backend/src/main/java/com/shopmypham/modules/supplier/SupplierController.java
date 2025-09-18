@@ -20,7 +20,9 @@ public class SupplierController {
   }
 
   @GetMapping("/{id}")
-  public ApiResponse<?> get(@PathVariable Long id){ return ApiResponse.ok(service.get(id)); }
+  public ApiResponse<?> get(@PathVariable Long id){
+    return ApiResponse.ok(service.get(id));
+  }
 
   @PostMapping
   @PreAuthorize("hasAuthority('supplier:write')")

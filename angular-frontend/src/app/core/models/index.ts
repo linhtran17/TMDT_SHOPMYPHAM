@@ -99,3 +99,5 @@ export interface Permission {
 }
 export * from './category.model';
 export interface PageResponse<T> { items: T[]; total: number; page: number; size: number; }
+// src/app/core/models/index.ts
+export * from './page.model';

@@ -10,49 +10,44 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
   selector: 'app-admin-layout',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, NgIf, NgFor],
   styles: [`
-    /* Layout: 240px sidebar + content */
     .wrap{ @apply min-h-screen bg-slate-50 lg:grid lg:grid-cols-[240px_1fr]; }
 
-    /* Sidebar: desktop luôn hiện, mobile off-canvas */
     .sidebar{
-      @apply fixed inset-y-0 left-0 z-40 w-64 transform -translate-x-full
+      @apply fixed inset-y-0 left-0 z-40 w-64 -translate-x-full
              bg-white border-r transition-transform duration-200 ease-in-out
              lg:static lg:translate-x-0 lg:h-screen lg:overflow-auto;
     }
     .sidebar.open{ @apply translate-x-0; }
 
-    /* Brand */
     .brand{ @apply flex items-center gap-2 px-4 py-4 border-b; }
     .brand-link{ @apply inline-flex items-center gap-2 font-extrabold text-rose-600 hover:text-rose-700; }
 
-    /* Nav */
     .section-title{ @apply px-4 pt-3 pb-1 text-[11px] uppercase tracking-wider text-slate-400; }
     .item{
-      @apply relative flex items-center gap-2 px-4 py-2 text-sm rounded-md
+      @apply flex items-center gap-2 px-4 py-2 text-sm rounded-md
              text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition;
     }
+    .item svg{ @apply w-4 h-4 text-slate-400 group-hover:text-rose-600; }
     .item.active{ @apply bg-rose-50 text-rose-700; }
 
-    /* Topbar: KHÔNG sticky – đứng yên khi cuộn */
-    .topbar{ @apply bg-white border-b; }
-    .topbar-inner{ @apply px-4 py-3 flex items-center gap-3; }
-    .spacer{ @apply flex-1; }
+    .topbar{ @apply bg-white border-b sticky top-0 z-30; }
+    .topbar-inner{ @apply flex items-center gap-3 px-4 min-h-14; }
+    .btn{ @apply inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200; }
+    .btn-icon{ @apply h-10 w-10; }
 
-    /* Buttons */
-    .btn{ @apply inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200; }
-    .btn-rose{ @apply bg-rose-600 text-white border-rose-600 hover:bg-rose-700; }
-
-    /* User */
-    .hello{ @apply hidden sm:flex items-center gap-3 relative; }
-    .avatar{ @apply inline-flex items-center justify-center w-8 h-8 rounded-full bg-rose-600 text-white text-sm; }
-    .menu{ @apply absolute right-0 top-full mt-2 w-56 bg-white border rounded-xl shadow-xl; }
+    .acct-wrap{ @apply ml-auto relative flex items-center; }
+    .acct{
+      @apply inline-flex items-center gap-2 h-10 px-2 rounded-lg border border-slate-200
+             bg-white hover:bg-slate-50;
+    }
+    .avatar{ @apply inline-flex items-center justify-center w-9 h-9 rounded-full bg-rose-600 text-white text-sm; }
+    .name{ @apply hidden sm:block text-left leading-4; }
+    .menu{ @apply absolute right-0 top-full mt-2 w-56 bg-white border rounded-xl shadow-xl overflow-hidden; }
     .menu a, .menu button{ @apply block w-full text-left px-3 py-2 text-sm hover:bg-rose-50; }
 
-    /* Main */
     .main{ @apply py-4; }
     .main-inner{ @apply px-4; }
 
-    /* Overlay mobile */
     .overlay{ @apply fixed inset-0 z-30 bg-black/30 lg:hidden; }
   `],
   template: `
@@ -69,125 +64,116 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
       <nav class="py-1 grid gap-0.5">
         <div class="section-title">Quản lý</div>
 
-        <a routerLink="/admin" [routerLinkActiveOptions]="{exact:true}"
-           routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M3 12h7v9H3zM14 3h7v18h-7zM3 3h7v7H3z"/>
-          </svg>
+        <a routerLink="/admin" [routerLinkActiveOptions]="{exact:true}" routerLinkActive="active" class="item group">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h7v9H3zM14 3h7v18h-7zM3 3h7v7H3z"/></svg>
           Tổng quan
         </a>
 
         <a routerLink="/admin/products" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M3 7l9-4 9 4-9 4-9-4zM3 17l9 4 9-4M3 12l9 4 9-4"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7l9-4 9 4-9 4-9-4zM3 17l9 4 9-4M3 12l9 4 9-4"/></svg>
           Sản phẩm
         </a>
+
         <a routerLink="/admin/suppliers" routerLinkActive="active" class="item group">
-  <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h6"/></svg>
-  Nhà cung cấp
-</a>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h6"/></svg>
+          Nhà cung cấp
+        </a>
 
         <a routerLink="/admin/categories" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M4 6h7v7H4zM13 6h7v7h-7zM4 15h7v7H4zM13 15h7v7h-7z"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h7v7H4zM13 6h7v7h-7zM4 15h7v7H4zM13 15h7v7h-7z"/></svg>
           Danh mục
         </a>
 
+        <a routerLink="/admin/orders" routerLinkActive="active" class="item group">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          Đơn hàng
+        </a>
+
         <a routerLink="/admin/banners" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M4 4h16v6l-4-2-4 2-4-2-4 2zM4 20h16"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v6l-4-2-4 2-4-2-4 2zM4 20h16"/></svg>
           Banner
         </a>
 
         <a routerLink="/admin/news" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h6"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h6"/></svg>
           Tin tức
         </a>
 
         <div class="section-title">Hệ thống</div>
 
         <a routerLink="/admin/users" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 110-8 4 4 0 010 8z"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 7a4 4 0 110-8 4 4 0 010 8z"/></svg>
           Người dùng
         </a>
 
         <a routerLink="/admin/roles" routerLinkActive="active" class="item group">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               class="w-4 h-4 text-slate-400 group-hover:text-rose-600">
-            <path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 18l.9-5.4L4.2 8.7l5.4-.8z"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 18l.9-5.4L4.2 8.7l5.4-.8z"/></svg>
           Vai trò & quyền
         </a>
 
-        <!-- (tuỳ chọn) menu nhập kho -->
-        <!-- Sổ kho (danh sách movement) -->
         <a routerLink="/admin/inventory" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="item group">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor">
-            <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h8"/>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h8"/></svg>
           Quản lý kho
         </a>
-
-        
-
       </nav>
     </aside>
 
-    <!-- OVERLAY (mobile) -->
     <div class="overlay" *ngIf="sideOpen()" (click)="sideOpen.set(false)"></div>
 
     <!-- CONTENT -->
     <section class="flex-1 min-w-0">
-      <!-- TOP BAR -->
       <div class="topbar">
         <div class="topbar-inner">
-          <div class="flex items-center gap-2 lg:hidden">
-            <button class="btn" (click)="sideOpen.set(true)" aria-label="Mở menu">
-              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor">
+          <!-- Hamburger: chỉ mobile -->
+          <div class="lg:hidden">
+            <button type="button" class="btn btn-icon" (click)="sideOpen.set(true)"
+                    [attr.aria-label]="'Mở menu'">
+              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <path d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
-            <a routerLink="/" class="inline-flex items-center gap-2" title="Trang chủ">
-              <img src="assets/img/logohong.png" class="w-6 h-6" alt="">
-              <span class="font-extrabold text-rose-600">L’Éclat</span>
-            </a>
           </div>
 
-          <div class="spacer"></div>
+          <div class="flex-1"></div>
 
-          <button class="btn hidden sm:inline-flex" (click)="reload()">↻ Tải lại</button>
+          <!-- Account phải -->
+          <div class="acct-wrap">
+            <ng-container *ngIf="user() as u; else guest">
+              <button
+                type="button"
+                class="acct"
+                (click)="acctOpen.set(!acctOpen())"
+                [attr.aria-haspopup]="'menu'"
+                [attr.aria-expanded]="acctOpen() ? 'true' : 'false'">
+                <span class="avatar">{{ (u.fullName || u.email || '?').charAt(0).toUpperCase() }}</span>
+                <div class="name">
+                  <div class="text-slate-900 text-sm font-medium truncate max-w-[180px]">
+                    {{ u.fullName || u.email }}
+                  </div>
+                  <div class="text-[12px] text-slate-500 -mt-0.5">Quản trị viên</div>
+                </div>
+                <svg viewBox="0 0 24 24" class="w-4 h-4 ml-1 text-slate-500" fill="none" stroke="currentColor">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
 
-          <div class="hello" *ngIf="user() as u; else guest">
-            <button class="btn" (click)="acctOpen.set(!acctOpen())" aria-haspopup="menu">
-              <span class="avatar">{{ (u.fullName || u.email || '?').charAt(0).toUpperCase() }}</span>
-              <div class="text-left">
-                <div class="text-slate-900 font-medium leading-4">{{ u.fullName || u.email }}</div>
-                <div class="text-[12px] text-slate-500 -mt-0.5">Quản trị viên</div>
+              <div class="menu" *ngIf="acctOpen()">
+                <a routerLink="/" (click)="acctOpen.set(false)">Về trang chủ</a>
+                <a routerLink="/account" (click)="acctOpen.set(false)">Hồ sơ</a>
+                <button type="button" (click)="logout()">Đăng xuất</button>
               </div>
-            </button>
+            </ng-container>
 
-            <div class="menu" *ngIf="acctOpen()">
-              <a routerLink="/" (click)="acctOpen.set(false)">Về trang chủ</a>
-              <a routerLink="/account" (click)="acctOpen.set(false)">Hồ sơ</a>
-              <button (click)="logout()">Đăng xuất</button>
-            </div>
+            <ng-template #guest>
+              <a routerLink="/login" class="acct">
+                <span class="avatar">?</span>
+                <span class="name">
+                  <span class="text-slate-900 text-sm font-medium">Đăng nhập</span>
+                  <span class="text-[12px] text-slate-500 -mt-0.5">Tài khoản</span>
+                </span>
+              </a>
+            </ng-template>
           </div>
-          <ng-template #guest>
-            <a routerLink="/login" class="btn btn-rose">Đăng nhập</a>
-          </ng-template>
         </div>
       </div>
 
@@ -213,13 +199,13 @@ export class AdminLayoutComponent {
     if (this.auth.token && !this.auth.userSnapshot()) {
       this.auth.fetchMe().pipe(takeUntilDestroyed()).subscribe({ error: () => this.auth.logout(false) });
     }
-
-    // đóng dropdown khi đổi route
     this.router.events
       .pipe(filter(e => e instanceof NavigationEnd), takeUntilDestroyed())
       .subscribe(() => this.acctOpen.set(false));
   }
 
-  reload(){ location.reload(); }
-  logout(){ this.auth.logout(false); this.router.navigateByUrl('/'); }
+  logout(){
+    this.auth.logout(false);
+    this.router.navigateByUrl('/');
+  }
 }

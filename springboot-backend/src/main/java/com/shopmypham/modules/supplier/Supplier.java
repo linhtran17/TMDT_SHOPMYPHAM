@@ -15,8 +15,9 @@ public class Supplier {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  // Mã nội bộ (tuỳ chọn)
-  @Column(length = 50, unique = false)
+  /** Mã nội bộ (tuỳ chọn). Không đặt unique ở cột vì cần so trùng không phân biệt hoa–thường.
+   *  Unique xử lý ở Service + (khuyến nghị) tạo functional index ở DB. */
+  @Column(length = 50)
   private String code;
 
   @Column(nullable = false, length = 255)
@@ -31,7 +32,7 @@ public class Supplier {
   @Column(length = 255)
   private String address;
 
-  // Mã số thuế (tuỳ chọn)
+  /** Mã số thuế (tuỳ chọn) */
   @Column(name = "tax_code", length = 50)
   private String taxCode;
 

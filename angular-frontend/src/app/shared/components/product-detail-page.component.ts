@@ -1,10 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { ProductService } from '../../core/services/product.service';
 import { ProductResponse, ProductVariant } from '../../core/models/product.model';
+import { CartService } from '../../core/services/cart.service';
+import { ToastService } from '../toast/toast'; // 👈 ĐÚNG: import từ file toast hợp nhất
 
 @Component({
   standalone: true,
@@ -34,19 +36,19 @@ import { ProductResponse, ProductVariant } from '../../core/models/product.model
 
       <!-- Gallery -->
       <div class="gallery">
-        <img class="mainimg" [src]="mainImage()" (error)="onMainErr($event)">
+        <img class="mainimg" [src]="mainImage()" (error)="onMainErr($event)" [alt]="p.name" />
         <div class="thumbs">
           <img *ngFor="let u of galleryImages(); let i = index"
                class="thumb" [class.active]="i===thumbIndex"
-               [src]="u" (click)="thumbIndex=i" (error)="onThumbErr($event)">
+               [src]="u" (click)="thumbIndex=i" (error)="onThumbErr($event)" [alt]="p.name + ' thumb ' + (i+1)"/>
         </div>
       </div>
 
       <!-- Info -->
       <div>
-        <!-- Fix NG8107: p đã được đảm bảo không null nhờ *ngIf="product as p" -->
         <h1 class="title">{{ p.name }}</h1>
         <div class="mt-1 text-slate-500">SKU: {{ currentSku() || (p.sku || '—') }}</div>
+
         <div class="mt-3">
           <ng-container *ngIf="currentSalePrice() != null && (currentSalePrice()! < currentPrice()!); else onlyPrice">
             <span class="price">{{ currentSalePrice()! | number:'1.0-0' }} đ</span>
@@ -56,11 +58,12 @@ import { ProductResponse, ProductVariant } from '../../core/models/product.model
             <span class="price">{{ currentPrice()! | number:'1.0-0' }} đ</span>
           </ng-template>
         </div>
+
         <div class="mt-1">
           <span class="badge">Tồn: {{ currentStock() }}</span>
         </div>
 
-        <!-- Options (when hasVariants) -->
+        <!-- Options (khi có biến thể) -->
         <div *ngIf="p.hasVariants" class="mt-4 grid gap-3">
           <div *ngFor="let name of optionNames" class="grid">
             <label class="opt-label">{{ name }}</label>
@@ -72,9 +75,13 @@ import { ProductResponse, ProductVariant } from '../../core/models/product.model
         </div>
 
         <div class="mt-4 flex items-center gap-2">
-          <button class="btn btn-primary" [disabled]="!canAddToCart()" (click)="addToCart()">
-            Thêm vào giỏ
+          <button class="btn btn-primary"
+                  [disabled]="adding || !canAddToCart()"
+                  (click)="addToCart()">
+            <span *ngIf="adding">Đang thêm…</span>
+            <span *ngIf="!adding">Thêm vào giỏ</span>
           </button>
+
           <button class="btn" (click)="buyNow()" [disabled]="!canAddToCart()">Mua ngay</button>
         </div>
 
@@ -83,10 +90,10 @@ import { ProductResponse, ProductVariant } from '../../core/models/product.model
         </div>
 
         <!-- Attributes -->
-        <div class="mt-6">
+        <div class="mt-6" *ngIf="(p.attributes?.length || 0) > 0">
           <div class="font-semibold mb-2">Thông tin</div>
           <div class="attrs">
-            <div *ngFor="let a of (p.attributes || [])" class="flex justify-between">
+            <div *ngFor="let a of p.attributes" class="flex justify-between">
               <div class="text-slate-500">{{ a.name }}</div>
               <div>{{ a.value }}</div>
             </div>
@@ -110,6 +117,9 @@ import { ProductResponse, ProductVariant } from '../../core/models/product.model
 export class ProductDetailPageComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private products = inject(ProductService);
+  private cart = inject(CartService);
+  private toast = inject(ToastService);
+  private router = inject(Router);
 
   product?: ProductResponse;
 
@@ -121,11 +131,16 @@ export class ProductDetailPageComponent implements OnInit {
   selected: Record<string, string|undefined> = {};
   matching?: ProductVariant;
 
+  adding = false;
+
   ngOnInit(){
-    const id = +this.route.snapshot.paramMap.get('id')!;
+    const idParam = this.route.snapshot.paramMap.get('id');
+    const id = idParam ? +idParam : NaN;
+    if (Number.isNaN(id)) return;
+
     this.products.get(id).subscribe({
       next: (p) => { this.product = p; this.buildOptions(); this.onOptionChange(); },
-      error: () => {}
+      error: () => this.toast.error('Không tải được sản phẩm')
     });
   }
 
@@ -154,8 +169,10 @@ export class ProductDetailPageComponent implements OnInit {
       Object.keys(opts).forEach(k => names.add(k));
     }
     this.optionNames = Array.from(names);
+
     const map: Record<string,Set<string>> = {} as any;
     for (const n of this.optionNames) map[n] = new Set<string>();
+
     for (const v of variants){
       const opts = v.options || {} as any;
       for (const n of this.optionNames){
@@ -167,7 +184,7 @@ export class ProductDetailPageComponent implements OnInit {
 
     // preselect first values
     for (const n of this.optionNames){
-      if (this.options[n]?.length){ this.selected[n] = this.options[n][0]; }
+      if (!this.selected[n] && this.options[n]?.length){ this.selected[n] = this.options[n][0]; }
     }
   }
 
@@ -177,10 +194,11 @@ export class ProductDetailPageComponent implements OnInit {
     this.matching = variants.find(v => {
       const opts = v.options || {} as any;
       return this.optionNames.every(n => !this.selected[n] || opts[n] === this.selected[n]);
-    });
+    }) || undefined;
     this.thumbIndex = 0;
   }
 
+  // ===== Current fields =====
   currentPrice(){
     if (!this.product) return 0;
     if (this.product.hasVariants){ return this.matching?.price ?? 0; }
@@ -201,6 +219,7 @@ export class ProductDetailPageComponent implements OnInit {
     return this.product?.sku || '';
   }
 
+  // ===== Cart actions =====
   canAddToCart(){
     if (!this.product) return false;
     if (this.product.hasVariants){ return !!this.matching && (this.matching.stock||0) > 0; }
@@ -208,15 +227,26 @@ export class ProductDetailPageComponent implements OnInit {
   }
 
   addToCart(){
-    console.log('ADD_TO_CART', {
-      productId: this.product?.id,
-      variantId: this.matching?.id || null,
-      qty: 1
+    if (!this.product) return;
+
+    if (this.product.hasVariants && !this.matching?.id){
+      this.toast.warning('Vui lòng chọn đầy đủ tuỳ chọn'); // 👈 dùng API mới
+      return;
+    }
+
+    const productId = this.product.id!;
+    const variantId = this.product.hasVariants ? (this.matching!.id) : null;
+
+    this.adding = true;
+    this.cart.addItem(productId, 1, variantId).subscribe({
+      next: () => { this.adding = false; },
+      error: () => { this.adding = false; }
     });
-    alert('Đã thêm vào giỏ');
   }
+
   buyNow(){
     if (!this.canAddToCart()) return;
     this.addToCart();
+    setTimeout(() => this.router.navigate(['/cart']), 150);
   }
 }

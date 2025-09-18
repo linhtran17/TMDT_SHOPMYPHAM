@@ -1,15 +1,16 @@
-export interface News {
-  id: number;
-  title: string;
-  slug: string;
-  coverImageUrl?: string;
-  excerpt?: string;
-  content?: string;
-  active?: boolean;
-  /** ISO-8601 UTC string từ BE (Instant) */
-  publishedAt?: string;
+// src/app/core/models/page.model.ts
 
-  /** Thêm để khớp BE */
-  authorId?: number;
-  authorName?: string;
+/**
+ * Chuẩn hoá interface phân trang để dùng chung FE.
+ * Khớp với Spring Page<T> được BE bọc lại trong ApiResponse.
+ */
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;   // page size
+  number: number; // page index (0-based)
 }
+
+/** Optional: alias thuận tay */
+export type PageResult<T> = Page<T>;
