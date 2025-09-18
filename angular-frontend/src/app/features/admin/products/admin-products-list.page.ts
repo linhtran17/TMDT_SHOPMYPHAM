@@ -5,10 +5,11 @@ import { Router, RouterLink } from '@angular/router';
 
 import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
-import { ProductResponse, PageResponse } from '../../../core/models/product.model';
+import { ProductResponse } from '../../../core/models/product.model';
 import { Category } from '../../../core/models/category.model';
 
 type Option = { id: number | null; label: string; disabled?: boolean };
+type PageResult<T> = { items: T[]; total: number };
 
 @Component({
   standalone: true,
@@ -22,6 +23,7 @@ type Option = { id: number | null; label: string; disabled?: boolean };
     .th{ @apply text-left p-2 text-slate-600; }
     .td{ @apply p-2; }
     .badge{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600; }
+    .badge-red{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-700; }
     .cell-img{ @apply w-12 h-12 rounded-md object-cover border; }
   `],
   template: `
@@ -54,27 +56,38 @@ type Option = { id: number | null; label: string; disabled?: boolean };
             <th class="th">SKU</th>
             <th class="th">Danh mục</th>
             <th class="th">Tồn</th>
-            <th class="th w-40"></th>
+            <th class="th">Trạng thái</th>
+            <th class="th w-44"></th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let p of items" class="border-t">
             <td class="td">
-              <img [src]="p.images?.[0]?.url || 'assets/img/placeholder.svg'" class="cell-img" />
+              <img [src]="imageUrl(p)" class="cell-img" />
             </td>
-            <td class="td font-semibold">{{ p.name }}</td>
-            <td class="td">{{ p.price | number:'1.0-0' }} đ</td>
+            <td class="td font-semibold">
+              {{ p.name }}
+              <span *ngIf="p.featured" class="badge ml-1">Nổi bật</span>
+              <span *ngIf="p.hasVariants" class="badge ml-1">Biến thể</span>
+            </td>
+            <td class="td">
+              {{ displayPrice(p) | number:'1.0-0' }} đ
+              <span *ngIf="p.salePrice!=null && !p.hasVariants && p.salePrice < (p.price||0)" class="badge ml-1">KM</span>
+            </td>
             <td class="td text-slate-600">{{ p.sku || '—' }}</td>
             <td class="td">{{ p.categoryName || '—' }}</td>
-            <td class="td"><span class="badge">{{ p.stock ?? 0 }}</span></td>
+            <td class="td"><span class="badge">{{ displayStock(p) }}</span></td>
+            <td class="td">
+              <span *ngIf="p.active!==false; else off" class="badge">Hiển thị</span>
+              <ng-template #off><span class="badge-red">Ẩn</span></ng-template>
+            </td>
             <td class="td text-right">
               <a class="btn" [routerLink]="['/admin/products', p.id, 'edit']">Sửa</a>
               <button class="btn text-rose-600" (click)="remove(p)">Xoá</button>
             </td>
-            
           </tr>
           <tr *ngIf="!items.length">
-            <td class="td text-slate-500 text-center" colspan="7">Không có sản phẩm.</td>
+            <td class="td text-slate-500 text-center" colspan="8">Không có sản phẩm.</td>
           </tr>
         </tbody>
       </table>
@@ -97,27 +110,46 @@ export class AdminProductsListPageComponent implements OnInit {
   private categorySvc = inject(CategoryService);
   private router = inject(Router);
 
-  // data
   items: ProductResponse[] = [];
   total = 0; page = 0; size = 12;
 
-  // filters
   q = '';
   categoryId: number | null = null;
   catOptions = signal<Option[]>([]);
 
   loading = false;
   error = '';
-
   private debounce?: any;
 
   ngOnInit(){
-    // build category options (leaf only enable; non-leaf disabled)
     this.categorySvc.listTree().subscribe({
       next: (tree: Category[]) => this.catOptions.set(this.makeCatOptions(tree)),
       error: () => this.catOptions.set([])
     });
     this.load(0);
+  }
+
+  imageUrl(p: ProductResponse): string {
+    const imgs = p.images || [];
+    const firstNonVariant = (imgs as any[]).find(i => !i?.variantId)?.url;
+    const first = imgs[0]?.url;
+    return firstNonVariant || first || 'assets/img/placeholder.svg';
+  }
+
+  displayPrice(p: ProductResponse): number {
+    if (p.hasVariants && p.variants?.length) {
+      const prices = p.variants.filter(v => v.active!==false).map(v => v.price || 0);
+      return prices.length ? Math.min(...prices) : 0;
+    }
+    if (p.salePrice!=null && p.price!=null && p.salePrice < p.price) return p.salePrice;
+    return p.price || 0;
+  }
+
+  displayStock(p: ProductResponse): number {
+    if (p.hasVariants && p.variants?.length) {
+      return p.variants.reduce((s,v)=> s + (v.stock||0), 0);
+    }
+    return p.stock || 0;
   }
 
   debouncedReload(){
@@ -128,17 +160,19 @@ export class AdminProductsListPageComponent implements OnInit {
   load(p = 0){
     this.loading = true; this.error = '';
     this.page = Math.max(0, p);
-    this.productSvc.search({ q: this.q || undefined, categoryId: this.categoryId ?? undefined, page: this.page, size: this.size })
-      .subscribe({
-        next: (pg: PageResponse<ProductResponse>) => {
-          this.items = pg.items || []; this.total = pg.total || 0; this.loading = false;
-        },
-        error: (e:any) => { this.items = []; this.total = 0; this.loading = false; this.error = e?.error?.message || 'Tải dữ liệu thất bại'; }
-      });
+    this.productSvc.search({
+      q: this.q || undefined,
+      categoryId: this.categoryId ?? undefined,
+      page: this.page, size: this.size
+    }).subscribe({
+      next: (pg: PageResult<ProductResponse>) => {
+        this.items = pg.items || []; this.total = pg.total || 0; this.loading = false;
+      },
+      error: (e:any) => { this.items = []; this.total = 0; this.loading = false; this.error = e?.error?.message || 'Tải dữ liệu thất bại'; }
+    });
   }
 
   totalPages(){ return Math.max(1, Math.ceil(this.total / this.size)); }
-
   reset(){ this.q=''; this.categoryId = null; this.load(0); }
 
   remove(p: ProductResponse){
@@ -153,11 +187,7 @@ export class AdminProductsListPageComponent implements OnInit {
     const pad = '—'.repeat(level);
     for (const n of tree) {
       const hasChildren = (n.children?.length ?? 0) > 0;
-      acc.push({
-        id: n.id,
-        label: `${pad} ${n.name}`.trim(),
-        disabled: hasChildren // non-leaf disabled
-      });
+      acc.push({ id: n.id, label: `${pad} ${n.name}`.trim(), disabled: hasChildren });
       if (hasChildren) this.makeCatOptions(n.children!, level+1, acc);
     }
     return acc;

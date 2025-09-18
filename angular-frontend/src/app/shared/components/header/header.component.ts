@@ -1,14 +1,16 @@
-import { Component, computed, inject, signal } from '@angular/core';
+// src/app/shared/components/header/header.component.ts
+import {
+  Component, inject, signal, computed,
+  HostListener, AfterViewInit
+} from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AuthService, SimpleUser } from '../../../core/services/auth.service';
-// SỬA import
 import { CategoryService } from '../../../core/services/category.service';
 import { Category } from '../../../core/models/category.model';
-
 
 @Component({
   selector: 'app-header',
@@ -17,159 +19,269 @@ import { Category } from '../../../core/models/category.model';
   styles: [`
     .container{ @apply max-w-7xl mx-auto; }
 
-    /* Nút neutral trên nền trắng */
-    .btn{
-      @apply inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm
-             border-slate-200 bg-white text-slate-700
-             hover:bg-rose-50 hover:border-rose-200 transition;
-    }
-    .btn-ghost{ @apply inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-rose-50; }
+    header{ @apply sticky top-0 z-50 bg-white/90 backdrop-blur border-b; transform:translateZ(0); }
+    header .row{ @apply container px-3; transition: padding .2s ease; }
 
-    /* Menu danh mục nổi phía trên slider */
-    .menu{ @apply absolute left-0 top-full mt-2 min-w-[820px] bg-white rounded-2xl shadow-2xl border border-rose-100 overflow-hidden z-[70]; }
+    /* ===== PROMO (để tông hiện tại) ===== */
+    .promo{ @apply bg-rose-500 text-white; }
+    .promo .inner{ @apply container px-3 py-1.5 text-[13px] flex items-center gap-4; }
+    header.is-compact .promo{ display:none; }
+
+    /* ===== HÀNG GIỮA: LOGO + SEARCH + ACTIONS ===== */
+    .mid{ @apply py-2 flex items-center gap-2 justify-between flex-nowrap; }
+    header.is-compact .mid{ @apply py-2; }
+
+    .search{ @apply relative flex items-center; }
+    .search .box{ @apply flex items-center rounded-full border border-slate-200 bg-white pl-3 pr-2 h-10 w-full shadow-sm; }
+    .search input{ @apply flex-1 bg-transparent outline-none text-[14px] text-slate-700 placeholder-transparent; }
+    .search .btn{ @apply ml-2 inline-flex items-center justify-center w-10 h-8 rounded-full bg-rose-600 text-white hover:bg-rose-700; }
+    /* marquee trong search */
+    .marquee{ @apply absolute left-3 right-12 text-[13px] text-slate-500 pointer-events-none whitespace-nowrap overflow-hidden; line-height:1; }
+    .marquee>span{ display:inline-block; padding-left:100%; animation:marquee 10s linear infinite; }
+    @keyframes marquee{ 0%{transform:translateX(0)} 100%{transform:translateX(-100%)} }
+    /* search co giãn để luôn 1 hàng */
+    .search-fluid{ width: clamp(220px, 30vw, 420px); }
+
+    /* ===== ACTION CHIPS (giữ 1 hàng) ===== */
+    .acts{ @apply flex items-center gap-1 shrink-0; }
+    .act{ @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 transition; }
+    .act:hover{ box-shadow:0 6px 18px rgba(0,0,0,.06); transform:translateY(-1px); }
+    .act .ic{ @apply grid place-items-center w-7 h-7 rounded-full bg-rose-100 text-rose-600; }
+    .act .txt b{ @apply text-[13px] leading-none font-semibold text-slate-800; }
+    .act .txt small{ @apply hidden xl:block text-[12px] text-slate-500 leading-none; }
+
+    .cart-badge{
+      @apply absolute -top-1 -right-1 min-w-[18px] h-[18px] text-[11px] font-semibold rounded-full bg-rose-600 text-white px-1.5 flex items-center justify-center;
+    }
+
+    /* ===== ACCOUNT DROPDOWN (đặt ngay dưới nút) ===== */
+    .acct-wrap{ @apply relative; }
+    .trigger{ @apply select-none; }
+    .dropdown{
+      position:absolute; right:0; top:calc(100% + 10px);
+      width:14rem; background:#fff; border:1px solid #ffe4e6; border-radius:16px;
+      box-shadow:0 12px 30px rgba(244,63,94,.15), 0 2px 6px rgba(0,0,0,.06);
+      z-index:90; overflow:hidden; animation:pop .14s ease-out both;
+    }
+    .dropdown::before{
+      content:''; position:absolute; right:1.75rem; top:-8px; width:14px; height:14px;
+      background:#fff; border-left:1px solid #ffe4e6; border-top:1px solid #ffe4e6; transform:rotate(45deg);
+      box-shadow:-2px -2px 0 0 #fff inset;
+    }
+    @keyframes pop{ from{transform:translateY(-6px); opacity:.0} to{transform:translateY(0); opacity:1} }
+    .menu-item{ @apply flex items-center gap-3 px-3.5 py-2.5 text-[14px] text-slate-700 hover:bg-rose-50; }
+    .menu-item svg{ @apply w-4 h-4; }
+    .separator{ @apply h-px bg-rose-100 mx-3 my-1; }
+
+    /* ===== THANH MENU HỒNG NHẠT (row 2) ===== */
+    .pinkbar{
+      background: linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%);
+      border-top: 1px solid #ffd1dc; border-bottom: 1px solid #ffd1dc;
+      color: #9f1239; /* rose-900 */
+    }
+    .pinkbar .nav{ @apply container px-3 flex items-center gap-2 overflow-x-auto; }
+    .nav-item{ @apply whitespace-nowrap px-3 py-3 text-[15px] font-semibold leading-none flex items-center gap-1 rounded-lg; }
+    .nav-item{ background: transparent; }
+    .nav-item:hover{ background: rgba(244,63,94,.10); } /* hover hồng nhạt */
+    .nav-item .chev{ @apply inline-block w-4 h-4; }
+    header.is-compact .pinkbar{ display:none; }
+
+    /* Danh mục đỏ (nút chính) */
+    .nav-item--cat{
+      @apply bg-rose-600 text-white;
+      box-shadow: 0 6px 18px rgba(244,63,94,.18);
+    }
+    .nav-item--cat:hover{ background: rgba(225,29,72,.92); } /* rose-700 ~ */
+    .nav-item--cat .chev path{ stroke:#fff; }
+
+    /* "HOT" pill cho Flash sale */
+    .hot-pill{ @apply ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white; }
+
+    /* ===== MEGA 2-PANE ===== */
+    .menu{ @apply absolute left-0 top-full mt-2 w-[min(1100px,calc(100vw-32px))] bg-white rounded-2xl shadow-2xl border border-rose-100 overflow-hidden z-[85]; }
     .menu-scroll{ @apply max-h-[70vh] overflow-auto; }
     .menu-left{ @apply w-64 bg-white border-r border-rose-100 py-2; }
-    .menu-item{ @apply px-3 py-2 flex items-center justify-between hover:bg-rose-50 rounded-lg cursor-pointer; }
+    .menu-item-left{
+      @apply px-3 py-2 flex items-center justify-between rounded-lg cursor-pointer;
+    }
+    .menu-item-left:hover{ background:#fff1f2; } /* rose-50 */
+    .menu-item-left.is-active{
+      background:#ffe4e6; /* rose-100 */
+      border-left: 3px solid #e11d48; /* rose-600 */
+    }
     .menu-right{ @apply flex-1 p-4 grid grid-cols-2 lg:grid-cols-3 gap-4; }
     .link-chip{ @apply inline-block px-2 py-1 rounded-md text-[13px] text-slate-700 hover:text-rose-600 hover:bg-rose-50; }
-
-    /* Badge ADMIN */
-    .badge-admin{ @apply ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900; }
   `],
   template: `
-<header class="sticky top-0 z-50">
-  <!-- PROMO BAR (màu hồng) -->
-  <div class="hidden md:block bg-rose-600">
-    <div class="container px-3.5 py-2 text-[13px] text-white flex items-center gap-4">
-      <span>🏷️ Chính hãng 100%</span>
-      <span>↺ Đổi trả 7 ngày</span>
-      <span class="ml-auto">🚚 Freeship đơn từ 499K</span>
-      <a routerLink="/orders" class="hover:underline text-white/90 hover:text-white">Tra cứu đơn</a>
+<header [class.is-compact]="compact()">
+
+  <!-- PROMO -->
+  <div class="promo">
+    <div class="inner">
+      <span>🎉 Đại tiệc sinh nhật – SALE đến 50%</span>
+      <span class="ml-auto hidden sm:inline">🚚 Giao nhanh nội thành 1h</span>
+      <span class="hidden md:inline">FREESHIP đơn từ 80K</span>
     </div>
   </div>
 
-  <!-- NAV BAR (nền trắng) -->
-  <div class="bg-white text-slate-700 border-b">
-    <div class="container px-3 py-2 flex items-center gap-3">
+  <!-- ROW 1: LOGO + SEARCH + ACTIONS -->
+  <div class="row mid">
+    <a routerLink="/" class="flex items-center gap-2 shrink-0" title="L’Éclat">
+      <img src="assets/img/logohong.png" alt="Logo" class="h-8 w-8 object-contain" />
+      <span class="hidden lg:inline text-lg font-extrabold text-rose-600">L’Éclat</span>
+    </a>
 
-      <!-- Logo -->
-      <a routerLink="/" class="flex items-center gap-2 shrink-0" title="L’Éclat">
-        <img src="assets/img/logohong.png" alt="Logo" class="h-8 w-8 object-contain" />
-        <span class="hidden sm:inline text-lg font-extrabold text-rose-600">L’Éclat</span>
+    <button class="btn-cat-sm" *ngIf="compact()" (click)="open.set(true)">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Danh mục
+    </button>
+
+    <form (ngSubmit)="onSearch()" class="mx-2">
+      <div class="search search-fluid">
+        <div class="box">
+          <input name="q" [(ngModel)]="q" (focus)="focus.set(true)" (blur)="focus.set(false)" placeholder="Sinh nhật L’Éclat - SALE"/>
+          <div class="marquee" *ngIf="showMarquee()">
+            <span>Đại hội tìm việc – SALE TO QUÀ KHỦNG • Chính hãng 100% • Đổi trả 7 ngày</span>
+          </div>
+          <button class="btn" aria-label="Tìm"><img src="assets/icon/seaching.png" alt="" class="w-5 h-5 object-contain"/></button>
+        </div>
+      </div>
+    </form>
+
+    <div class="acts">
+      <a routerLink="/contact" class="act" title="Liên hệ">
+        <span class="ic"><img src="assets/icon/telephone.png" class="w-4 h-4" alt="phone" /></span>
+        <span class="txt"><b>Hỗ trợ</b><small>1900 2631</small></span>
       </a>
 
-      <!-- DANH MỤC -->
-      <div class="relative" (mouseenter)="open.set(true)" (mouseleave)="closeAll()">
-        <button class="btn" aria-haspopup="menu" [attr.aria-expanded]="open() ? 'true' : 'false'">
-          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 6h16M4 12h16M4 18h16"/>
-          </svg>
+      <!-- Account -->
+      <div class="acct-wrap">
+        <ng-container *ngIf="user() as u; else guest">
+          <button class="act trigger" (click)="acctOpen.set(!acctOpen())" aria-haspopup="menu" [attr.aria-expanded]="acctOpen() ? 'true' : 'false'">
+            <span class="ic"><img src="assets/icon/user.png" class="w-4 h-4" alt="user" /></span>
+            <span class="txt"><b>Tài khoản</b><small>{{ u.fullName || u.email }}</small></span>
+          </button>
+
+          <div *ngIf="acctOpen()" class="dropdown">
+            <a class="menu-item" routerLink="/orders" (click)="closeAll()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h10l2 2v14l-2 2H7l-2-2V5l2-2z"/><path d="M9 7h6M9 11h6M9 15h6"/></svg>
+              <span>Đơn hàng</span>
+            </a>
+            <a *ngIf="isAdmin(u)" class="menu-item" routerLink="/admin" (click)="closeAll()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"/></svg>
+              <span>Quản trị</span>
+            </a>
+            <div class="separator"></div>
+            <button class="menu-item text-rose-600 hover:bg-rose-100" (click)="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </ng-container>
+        <ng-template #guest>
+          <a routerLink="/login" class="act trigger" title="Đăng nhập">
+            <span class="ic"><img src="assets/icon/user.png" class="w-4 h-4" alt="user" /></span>
+            <span class="txt"><b>Tài khoản</b><small>Đăng nhập</small></span>
+          </a>
+        </ng-template>
+      </div>
+
+      <!-- Cart -->
+      <a routerLink="/cart" class="act relative" title="Giỏ hàng">
+        <span class="ic relative">
+          <img src="assets/icon/shopping-cart.png" class="w-4 h-4" alt="cart"/>
+          <span *ngIf="cartCount()>0" class="cart-badge">{{ cartCount() }}</span>
+        </span>
+        <span class="txt"><b>Giỏ hàng</b></span>
+      </a>
+
+      <a routerLink="/orders" class="act" title="Tra cứu đơn">
+        <span class="ic"><img src="assets/icon/refresh.png" class="w-4 h-4" alt="orders"/></span>
+        <span class="txt"><b>Tra cứu</b><small>Đơn hàng</small></span>
+      </a>
+    </div>
+  </div>
+
+  <!-- ROW 2: MENU HỒNG NHẠT -->
+  <div class="pinkbar">
+    <nav class="nav">
+      <a routerLink="/" routerLinkActive="bg-white/10" [routerLinkActiveOptions]="{exact:true}" class="nav-item">Trang chủ</a>
+
+      <!-- Danh mục: nút đỏ -->
+      <div class="relative" (mouseenter)="open.set(true)" (mouseleave)="closeAll()" *ngIf="!compact()">
+        <button class="nav-item nav-item--cat" aria-haspopup="menu" [attr.aria-expanded]="open() ? 'true' : 'false'">
           Danh mục
+          <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg>
         </button>
 
         <div class="menu" *ngIf="open()">
           <div class="menu-scroll">
-            <ng-container *ngIf="parents().length; else emptyCats">
-              <div class="flex">
-                <!-- cột trái -->
-                <div class="menu-left">
-                  <div *ngFor="let p of parents()"
-                       class="menu-item"
-                       [ngClass]="{'bg-rose-50 text-rose-700': p.id===hoverId()}"
-                       (mouseenter)="hoverId.set(p.id)">
-                    <span class="font-medium">{{ p.name }}</span>
-                    <svg viewBox="0 0 24 24" class="w-4 h-4 text-slate-400">
-                      <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/>
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- cột phải -->
-                <div class="menu-right">
-                  <ng-container *ngIf="currentParent() as parent">
-                    <ng-container *ngIf="parent.children?.length; else noChild">
-                      <div *ngFor="let c of parent.children">
-                        <div class="font-semibold text-slate-800 mb-1">{{ c.name }}</div>
-                        <div class="flex flex-wrap gap-1.5">
-                          <a [routerLink]="'/products'" [queryParams]="{cat: c.slug}" class="link-chip" (click)="closeAll()">
-                            Xem tất cả {{ c.name }}
-                          </a>
-                          <a *ngFor="let g of c.children"
-                             [routerLink]="'/products'"
-                             [queryParams]="{cat: g.slug}"
-                             class="link-chip"
-                             (click)="closeAll()">
-                            {{ g.name }}
-                          </a>
-                        </div>
-                      </div>
-                    </ng-container>
-                    <ng-template #noChild>
-                      <div class="text-slate-500">Danh mục này chưa có mục con</div>
-                    </ng-template>
-                  </ng-container>
+            <div class="flex" *ngIf="parents().length; else emptyCats">
+              <div class="menu-left">
+                <div *ngFor="let p of parents()"
+                     class="menu-item-left"
+                     [ngClass]="{'is-active': p.id===hoverId()}"
+                     (mouseenter)="hoverId.set(p.id)">
+                  <span class="font-medium">{{ p.name }}</span>
+                  <svg viewBox="0 0 24 24" class="w-4 h-4 text-slate-400"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
                 </div>
               </div>
-            </ng-container>
-            <ng-template #emptyCats>
-              <div class="p-4 text-slate-600">Chưa có danh mục</div>
-            </ng-template>
+
+              <div class="menu-right">
+                <ng-container *ngIf="currentParent() as parent">
+                  <ng-container *ngIf="parent.children?.length; else noChild">
+                    <div *ngFor="let c of parent.children">
+                      <div class="font-semibold text-slate-800 mb-1">{{ c.name }}</div>
+                      <div class="flex flex-wrap gap-1.5">
+                        <a class="link-chip" [routerLink]="'/products'" [queryParams]="{cat: c.slug || c.id}" (click)="closeAll()">Xem tất cả {{ c.name }}</a>
+                        <a class="link-chip" *ngFor="let g of (c.children || [])" [routerLink]="'/products'" [queryParams]="{cat: g.slug || g.id}" (click)="closeAll()">{{ g.name }}</a>
+                      </div>
+                    </div>
+                  </ng-container>
+                  <ng-template #noChild><div class="text-slate-500 p-2">Danh mục này chưa có mục con</div></ng-template>
+                </ng-container>
+              </div>
+            </div>
+            <ng-template #emptyCats><div class="p-4 text-slate-600">Chưa có danh mục</div></ng-template>
           </div>
         </div>
       </div>
 
-      <!-- NAV LINKS -->
-      <nav class="hidden md:flex items-center gap-1">
-        <a routerLink="/"
-           routerLinkActive="text-rose-600"
-           [routerLinkActiveOptions]="{exact:true}"
-           class="px-3 py-2 text-sm hover:text-rose-600">Trang chủ</a>
-        <a routerLink="/news" routerLinkActive="text-rose-600" class="px-3 py-2 text-sm hover:text-rose-600">Tin tức</a>
-        <a routerLink="/about" routerLinkActive="text-rose-600" class="px-3 py-2 text-sm hover:text-rose-600">Giới thiệu</a>
-        <a routerLink="/contact" routerLinkActive="text-rose-600" class="px-3 py-2 text-sm hover:text-rose-600">Liên hệ</a>
-      </nav>
+      <!-- Flash sale -->
+      <a routerLink="/flash" routerLinkActive="bg-white/10" class="nav-item">
+        Flash sale <span class="hot-pill">HOT</span>
+      </a>
 
-      <!-- SEARCH -->
-      <form (ngSubmit)="onSearch()" class="ml-auto hidden sm:flex items-center gap-2">
-        <input name="q"
-               [(ngModel)]="q"
-               placeholder="Tìm mỹ phẩm, thương hiệu…"
-               class="w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200"/>
-        <button class="btn-ghost">Tìm</button>
-      </form>
+      <a routerLink="/news" routerLinkActive="bg-white/10" class="nav-item">Tin tức</a>
+      <a routerLink="/about" routerLinkActive="bg-white/10" class="nav-item">Giới thiệu</a>
+      <a routerLink="/contact" routerLinkActive="bg-white/10" class="nav-item">Liên hệ</a>
+      <a routerLink="/orders" routerLinkActive="bg-white/10" class="nav-item">Tra cứu đơn hàng</a>
+    </nav>
+  </div>
 
-      <!-- ACCOUNT -->
-      <div class="hidden sm:flex items-center gap-2 ml-1 relative">
-        <ng-container *ngIf="user() as u; else guest">
-          <button class="btn"
-                  (click)="acctOpen.set(!acctOpen())"
-                  aria-haspopup="menu"
-                  [attr.aria-expanded]="acctOpen() ? 'true' : 'false'">
-            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-600 text-white text-sm">
-              {{ (u.fullName || u.email || '?').charAt(0).toUpperCase() }}
-            </span>
-            <strong class="ml-1">{{ u.fullName || u.email }}</strong>
-            <span *ngIf="isAdmin(u)" class="badge-admin">ADMIN</span>
-          </button>
-
-          <div *ngIf="acctOpen()" class="absolute right-0 top-full mt-2 w-52 bg-white text-slate-700 border rounded-xl shadow-xl z-[80]">
-            <a *ngIf="isAdmin(u)" routerLink="/admin" (click)="closeAll()" class="block px-3 py-2 hover:bg-rose-50">Quản trị</a>
-            <a routerLink="/orders" (click)="closeAll()" class="block px-3 py-2 hover:bg-rose-50">Đơn hàng</a>
-            <button (click)="logout()" class="w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50">Đăng xuất</button>
+  <!-- OVERLAY + MENU COMPACT -->
+  <div class="overlay" *ngIf="compact() && open()" (click)="closeAll()"></div>
+  <div class="menu-compact" *ngIf="compact() && open() && parents().length">
+    <div class="panel">
+      <div class="card" (click)="$event.stopPropagation()">
+        <div class="grid-wrap">
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div *ngFor="let p of parents()">
+              <h4>{{ p.name }}</h4>
+              <div class="flex flex-wrap gap-1.5">
+                <a class="chip" [routerLink]="'/products'" [queryParams]="{cat: p.slug || p.id}" (click)="closeAll()">Tất cả {{ p.name }}</a>
+                <a *ngFor="let c of (p.children || [])" class="chip" [routerLink]="'/products'" [queryParams]="{cat: c.slug || c.id}" (click)="closeAll()">{{ c.name }}</a>
+              </div>
+            </div>
           </div>
-        </ng-container>
-
-        <ng-template #guest>
-          <a routerLink="/login" class="btn">Đăng nhập</a>
-        </ng-template>
+        </div>
       </div>
-
     </div>
   </div>
 </header>
   `
 })
-export class HeaderComponent {
+export class HeaderComponent implements AfterViewInit {
   private router = inject(Router);
   private auth = inject(AuthService);
   private catApi = inject(CategoryService);
@@ -177,12 +289,15 @@ export class HeaderComponent {
   q = '';
   user = signal<SimpleUser | null>(null);
 
-  // kiểm tra quyền ADMIN theo token /me
-  isAdmin = (u: SimpleUser | null) => !!u?.roles?.includes('ROLE_ADMIN');
-
   open = signal(false);
   acctOpen = signal(false);
   hoverId = signal<number | null>(null);
+  compact = signal(false);
+  cartCount = signal(0);
+
+  // marquee
+  focus = signal(false);
+  showMarquee = computed(() => !this.q.trim() && !this.focus());
 
   categories = signal<Category[]>([]);
   parents = computed(() => this.categories().filter(x => !x.parentId));
@@ -192,12 +307,10 @@ export class HeaderComponent {
   });
 
   constructor() {
-    // user
-    this.auth.user$.pipe(takeUntilDestroyed()).subscribe((u) => this.user.set(u));
+    this.auth.user$.pipe(takeUntilDestroyed()).subscribe(u => this.user.set(u));
     if (this.auth.token && !this.auth.userSnapshot()) {
       this.auth.fetchMe().pipe(takeUntilDestroyed()).subscribe({ error: () => this.auth.logout(false) });
     }
-    // categories
     this.catApi.listTree().pipe(takeUntilDestroyed()).subscribe({
       next: list => {
         this.categories.set(list || []);
@@ -206,9 +319,34 @@ export class HeaderComponent {
       },
       error: () => this.categories.set([]),
     });
+
+    this.updateCartCount();
+    window.addEventListener('storage', (e) => { if (e.key === 'cart') this.updateCartCount(); });
+  }
+
+  ngAfterViewInit(){ this.compact.set(window.scrollY > 80); }
+  @HostListener('window:scroll') onScroll(){ this.compact.set(window.scrollY > 80); }
+
+  /* Đóng dropdown khi click ra ngoài */
+  @HostListener('document:click', ['$event'])
+  onDoc(ev: MouseEvent){
+    const el = ev.target as HTMLElement;
+    if (!el.closest('.acct-wrap')) this.acctOpen.set(false);
+  }
+  @HostListener('document:keydown.escape') onEsc(){ this.closeAll(); }
+
+  private updateCartCount(){
+    try{
+      const raw = localStorage.getItem('cart');
+      const arr = raw ? JSON.parse(raw) : [];
+      const total = Array.isArray(arr) ? arr.reduce((s:number,it:any)=> s + Number(it?.qty || 1), 0) : 0;
+      this.cartCount.set(total);
+    }catch{ this.cartCount.set(0); }
   }
 
   closeAll(){ this.open.set(false); this.acctOpen.set(false); }
-  onSearch(){ this.router.navigate(['/products'], { queryParams: { q: (this.q || '').trim(), page: 1 } }); this.closeAll(); }
+  onSearch(){ const q=(this.q||'').trim(); this.router.navigate(['/products'],{ queryParams:{ q, page:1 }}); this.closeAll(); }
   logout(){ this.auth.logout(false); this.router.navigateByUrl('/'); this.closeAll(); }
+
+  isAdmin = (u: SimpleUser | null) => !!u?.roles?.includes('ROLE_ADMIN');
 }

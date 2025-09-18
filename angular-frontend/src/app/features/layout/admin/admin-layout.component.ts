@@ -1,8 +1,5 @@
-import { Component, signal, inject } from '@angular/core';
-import {
-  Router, RouterLink, RouterLinkActive, RouterOutlet,
-  ActivatedRoute, NavigationEnd
-} from '@angular/router';
+import { Component, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet, NavigationEnd } from '@angular/router';
 import { NgIf, NgFor } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs/operators';
@@ -37,8 +34,8 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
     .item.active{ @apply bg-rose-50 text-rose-700; }
 
     /* Topbar: KHÔNG sticky – đứng yên khi cuộn */
-    .topbar{ @apply bg-white border-b; }                  /* bỏ sticky/top/z-index */
-    .topbar-inner{ @apply px-4 py-3 flex items-center gap-3; } /* padding khớp content */
+    .topbar{ @apply bg-white border-b; }
+    .topbar-inner{ @apply px-4 py-3 flex items-center gap-3; }
     .spacer{ @apply flex-1; }
 
     /* Buttons */
@@ -51,7 +48,7 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
     .menu{ @apply absolute right-0 top-full mt-2 w-56 bg-white border rounded-xl shadow-xl; }
     .menu a, .menu button{ @apply block w-full text-left px-3 py-2 text-sm hover:bg-rose-50; }
 
-    /* Main: padding ngang khớp topbar để hết lệch */
+    /* Main */
     .main{ @apply py-4; }
     .main-inner{ @apply px-4; }
 
@@ -88,6 +85,10 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
           </svg>
           Sản phẩm
         </a>
+        <a routerLink="/admin/suppliers" routerLinkActive="active" class="item group">
+  <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h6"/></svg>
+  Nhà cung cấp
+</a>
 
         <a routerLink="/admin/categories" routerLinkActive="active" class="item group">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -130,6 +131,18 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
           </svg>
           Vai trò & quyền
         </a>
+
+        <!-- (tuỳ chọn) menu nhập kho -->
+        <!-- Sổ kho (danh sách movement) -->
+        <a routerLink="/admin/inventory" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="item group">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor">
+            <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h8"/>
+          </svg>
+          Quản lý kho
+        </a>
+
+        
+
       </nav>
     </aside>
 
@@ -138,10 +151,9 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
 
     <!-- CONTENT -->
     <section class="flex-1 min-w-0">
-      <!-- TOP BAR (không sticky) -->
+      <!-- TOP BAR -->
       <div class="topbar">
         <div class="topbar-inner">
-          <!-- burger + brand (mobile) -->
           <div class="flex items-center gap-2 lg:hidden">
             <button class="btn" (click)="sideOpen.set(true)" aria-label="Mở menu">
               <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor">
@@ -191,7 +203,6 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
 export class AdminLayoutComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
-  private ar = inject(ActivatedRoute);
 
   user = signal<SimpleUser | null>(null);
   sideOpen = signal(false);

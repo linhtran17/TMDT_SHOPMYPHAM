@@ -7,20 +7,23 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
-// ... package & import ...
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
+
   Optional<Category> findBySlug(String slug);
+
   Optional<Category> findByName(String name);
+
   boolean existsByName(String name);
+
   boolean existsByParentId(Long parentId);
 
+  // Dùng để lấy toàn bộ danh mục theo tên (tiện cho service.tree())
   default List<Category> findAllOrderByName() {
     return findAll(Sort.by("name").ascending());
   }
 
+  // Đếm số con theo danh sách parentId (JPQL -> cột là thuộc tính entity)
   @Query("select c.parentId, count(c) from Category c where c.parentId in :ids group by c.parentId")
   List<Object[]> countChildrenByParentIds(@Param("ids") List<Long> ids);
 }

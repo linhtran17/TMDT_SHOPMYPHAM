@@ -1,6 +1,6 @@
+// dto/ProductImageDto.java (cập nhật: thêm variantId)
 package com.shopmypham.modules.product.dto;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Builder; import lombok.Data;
 
 @Data @Builder
 public class ProductImageDto {
@@ -9,4 +9,5 @@ public class ProductImageDto {
   private String publicId;
   private String alt;
   private Integer sortOrder;
+  private Long variantId; // NEW
 }

@@ -67,7 +67,8 @@ type Row = Banner;
             <td class="p-3 font-medium">{{ b.title || '—' }}</td>
             <td class="p-3 text-slate-600">{{ b.link || '—' }}</td>
             <td class="p-3 text-center">
-              <input type="number" class="inp w-20" [ngModel]="b.sortOrder ?? 0"
+              <!-- Fix NG8102: không dùng ?? vì TS type của sortOrder không null -->
+              <input type="number" class="inp w-20" [ngModel]="b.sortOrder == null ? 0 : b.sortOrder"
                      (ngModelChange)="update(b, { sortOrder: +$event })">
             </td>
             <td class="p-3 text-center">
@@ -109,18 +110,15 @@ type Row = Banner;
 export class AdminBannersListPageComponent implements OnInit {
   private api = inject(BannerService);
 
-  // data
   items = signal<Row[]>([]);
   rows  = signal<Row[]>([]);
   loading = signal(true);
   error   = signal('');
 
-  // filter
   q = '';
   status: 'all'|'active'|'inactive' = 'all';
   private debounce?: any;
 
-  // modal
   modalOpen = signal(false);
   editing   = signal<Row|null>(null);
 
