@@ -7,10 +7,10 @@ export type ProductCardData = {
   name: string;
   price: number;
   salePrice?: number | null;
-  images?: string[];
-  slug?: string;
+  images?: string[];  // URLs
   inStock?: boolean;
   badge?: string | null;
+  routerLinkTo?: any[] | string;
 };
 
 @Component({
@@ -27,14 +27,12 @@ export type ProductCardData = {
     .price-old { @apply text-slate-400 line-through ml-2; }
     .btn  { @apply text-xs px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50; }
     .btn-primary { @apply bg-rose-600 text-white border-rose-600 hover:bg-rose-700; }
-    /* skeleton */
     .shimmer { background: linear-gradient(90deg,#f6f7f8 25%,#edeef1 37%,#f6f7f8 63%); background-size: 400% 100%; animation: shimmer 1.2s infinite; }
     @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
   `],
   template: `
   <div class="pcard" [class.opacity-60]="!product?.inStock && !loading">
-
-    <!-- SKELETON -->
+    <!-- Skeleton -->
     <ng-container *ngIf="loading; else real">
       <div class="img shimmer"></div>
       <div class="px-3 py-2">
@@ -43,9 +41,10 @@ export type ProductCardData = {
       </div>
     </ng-container>
 
-    <!-- REAL CARD -->
+    <!-- Real card -->
     <ng-template #real>
-      <a *ngIf="routerLinkTo; else imgOnly" [routerLink]="routerLinkTo" class="block relative">
+      <a *ngIf="product?.routerLinkTo || routerLinkTo; else imgOnly"
+         [routerLink]="product?.routerLinkTo || routerLinkTo" class="block relative">
         <img class="img" [src]="image()" [alt]="product?.name || 'product'" (error)="onImgErr($event)">
         <span *ngIf="product?.badge" class="badge">{{ product?.badge }}</span>
       </a>
@@ -56,14 +55,15 @@ export type ProductCardData = {
         </div>
       </ng-template>
 
-      <a *ngIf="routerLinkTo; else nameOnly" [routerLink]="routerLinkTo" class="name">{{ product?.name }}</a>
+      <a *ngIf="product?.routerLinkTo || routerLinkTo; else nameOnly"
+         [routerLink]="product?.routerLinkTo || routerLinkTo" class="name">{{ product?.name }}</a>
       <ng-template #nameOnly><div class="name">{{ product?.name }}</div></ng-template>
 
       <div class="row">
         <div>
           <ng-container *ngIf="product?.salePrice && product?.salePrice! < product?.price!; else normalPrice">
             <span class="price-now">{{ product?.salePrice | number:'1.0-0' }} đ</span>
-            <span class="price-old">{{ product?.price | number:'1.0-0' }} đ</span>
+            <span class="price-old">{{ product?.price   | number:'1.0-0' }} đ</span>
           </ng-container>
           <ng-template #normalPrice>
             <span class="price-now">{{ product?.price | number:'1.0-0' }} đ</span>
@@ -91,7 +91,7 @@ export class ProductCardComponent {
   @Output() addToCart = new EventEmitter<ProductCardData>();
   @Output() view = new EventEmitter<ProductCardData>();
 
-  placeholder = 'assets/img/placeholder.png';
+  placeholder = 'assets/img/placeholder.svg';
 
   image(){ return this.product?.images?.[0] || this.placeholder; }
   onImgErr(e: Event){ (e.target as HTMLImageElement).src = this.placeholder; }

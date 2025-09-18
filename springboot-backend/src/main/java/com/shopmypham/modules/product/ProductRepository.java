@@ -1,12 +1,12 @@
-// src/main/java/com/shopmypham/modules/product/ProductRepository.java
 package com.shopmypham.modules.product;
 
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
@@ -16,27 +16,34 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         SELECT *
         FROM products p
         WHERE (:categoryId IS NULL OR p.category_id = :categoryId)
-          AND (:name IS NULL OR :name = '' OR LOWER(p.name) LIKE CONCAT('%', LOWER(:name), '%'))
-        ORDER BY p.created_at DESC
+          AND (
+             :q IS NULL OR :q = ''
+             OR LOWER(p.name) LIKE CONCAT('%', LOWER(:q), '%')
+             OR LOWER(COALESCE(p.sku, '')) LIKE CONCAT('%', LOWER(:q), '%')
+          )
+        ORDER BY p.id DESC
       """,
       countQuery = """
         SELECT COUNT(*)
         FROM products p
         WHERE (:categoryId IS NULL OR p.category_id = :categoryId)
-          AND (:name IS NULL OR :name = '' OR LOWER(p.name) LIKE CONCAT('%', LOWER(:name), '%'))
+          AND (
+             :q IS NULL OR :q = ''
+             OR LOWER(p.name) LIKE CONCAT('%', LOWER(:q), '%')
+             OR LOWER(COALESCE(p.sku, '')) LIKE CONCAT('%', LOWER(:q), '%')
+          )
       """,
-      nativeQuery = true
-  )
+      nativeQuery = true)
   Page<Product> searchNative(@Param("categoryId") Long categoryId,
-                             @Param("name") String name,
+                             @Param("q") String q,
                              Pageable pageable);
 
-  // GIỮ dễ hiểu: JPA tự sinh SQL, không native
   boolean existsBySku(String sku);
 
-  // 🔑 quan trọng: bỏ @Query native, dùng derived query
+  // ✳️ Dùng trong CategoryService.delete()
   boolean existsByCategoryId(Long categoryId);
 
+  // ✳️ Dùng trong CategoryService.adminPage() để đếm sản phẩm theo danh mục
   @Query(value = "SELECT p.category_id, COUNT(p.id) FROM products p WHERE p.category_id IN (:ids) GROUP BY p.category_id", nativeQuery = true)
   List<Object[]> countByCategoryIds(@Param("ids") List<Long> ids);
 }

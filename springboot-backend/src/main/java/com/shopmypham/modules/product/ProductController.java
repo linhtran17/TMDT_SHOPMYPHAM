@@ -1,21 +1,23 @@
+// ProductController.java
 package com.shopmypham.modules.product;
-import java.util.Map;
 
 import com.shopmypham.core.api.ApiResponse;
 import com.shopmypham.core.api.PageResponse;
-import com.shopmypham.modules.product.dto.ProductRequest;
-import com.shopmypham.modules.product.dto.ProductResponse;
+import com.shopmypham.modules.product.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/products") // <<< ĐÚNG PREFIX
+@RequestMapping("/api/products")
 @RequiredArgsConstructor
 public class ProductController {
   private final ProductService service;
 
+  // ===== CRUD Product =====
   @GetMapping
   public ApiResponse<PageResponse<ProductResponse>> search(
       @RequestParam(required = false) String q,
@@ -40,35 +42,71 @@ public class ProductController {
   @PutMapping("/{id}")
   @PreAuthorize("hasAuthority('product:update')")
   public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
-    service.update(id, req); return ApiResponse.ok();
+    service.update(id, req);
+    return ApiResponse.ok();
   }
 
   @DeleteMapping("/{id}")
   @PreAuthorize("hasAuthority('product:delete')")
   public ApiResponse<Void> delete(@PathVariable Long id) {
-    service.delete(id); return ApiResponse.ok();
+    service.delete(id);
+    return ApiResponse.ok();
   }
 
-  // Gắn ảnh (sau khi FE upload Cloudinary xong)
-// Gắn ảnh (sau khi FE upload Cloudinary xong)
-@PostMapping("/{id}/images")
-@PreAuthorize("hasAuthority('product:update')")
-public ApiResponse<Long> addImage(
-    @PathVariable Long id,
-    @RequestBody Map<String, Object> body
-){
-  String url = (String) body.get("url");
-  String publicId = (String) body.get("publicId");
-  String alt = (String) body.getOrDefault("alt", "");
-  Integer sortOrder = body.get("sortOrder")==null?0: ((Number)body.get("sortOrder")).intValue();
-  if (url==null || url.isBlank()) throw new com.shopmypham.core.exception.BadRequestException("Thiếu url ảnh");
-  return ApiResponse.ok(service.addImage(id, url, publicId, alt, sortOrder));
-}
+  // ===== Images =====
+  @PostMapping("/{id}/images")
+  @PreAuthorize("hasAuthority('product:update')")
+  public ApiResponse<Long> addImage(
+      @PathVariable Long id,
+      @RequestBody Map<String, Object> body
+  ){
+    String url = (String) body.get("url");
+    if (url == null || url.isBlank()) {
+      throw new com.shopmypham.core.exception.BadRequestException("Thiếu url ảnh");
+    }
+    String publicId = (String) body.get("publicId");
+    String alt = (String) body.getOrDefault("alt", "");
+    Integer sortOrder = body.get("sortOrder") == null ? 0 : ((Number) body.get("sortOrder")).intValue();
+    Long variantId = body.get("variantId") == null ? null : ((Number) body.get("variantId")).longValue();
 
-@DeleteMapping("/images/{imageId}")
-@PreAuthorize("hasAuthority('product:update')")
-public ApiResponse<Void> deleteImage(@PathVariable Long imageId){
-  service.deleteImage(imageId); return ApiResponse.ok();
-}
+    return ApiResponse.ok(service.addImage(id, url, publicId, alt, sortOrder, variantId));
+  }
 
+  @DeleteMapping("/images/{imageId}")
+  @PreAuthorize("hasAuthority('product:update')")
+  public ApiResponse<Void> deleteImage(@PathVariable Long imageId){
+    service.deleteImage(imageId);
+    return ApiResponse.ok();
+  }
+
+  // ===== Variants =====
+  @GetMapping("/{id}/variants")
+  public ApiResponse<List<VariantDto>> listVariants(@PathVariable Long id){
+    return ApiResponse.ok(service.listVariants(id));
+  }
+
+  @PutMapping("/{id}/variants")
+  @PreAuthorize("hasAuthority('product:update')")
+  public ApiResponse<List<VariantDto>> upsertVariants(
+      @PathVariable Long id,
+      @RequestBody List<@Valid VariantUpsertDto> body
+  ){
+    return ApiResponse.ok(service.upsertVariants(id, body)); // trả về list đã có ID
+  }
+
+  // ===== Attributes =====
+  @GetMapping("/{id}/attributes")
+  public ApiResponse<List<AttributeDto>> listAttributes(@PathVariable Long id){
+    return ApiResponse.ok(service.listAttributes(id));
+  }
+
+  @PutMapping("/{id}/attributes")
+  @PreAuthorize("hasAuthority('product:update')")
+  public ApiResponse<Void> upsertAttributes(
+      @PathVariable Long id,
+      @RequestBody List<@Valid AttributeUpsertDto> body
+  ){
+    service.upsertAttributes(id, body);
+    return ApiResponse.ok();
+  }
 }

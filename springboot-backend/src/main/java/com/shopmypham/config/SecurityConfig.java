@@ -39,7 +39,9 @@ public class SecurityConfig {
   private final JwtService jwtService;
 
   @Bean
-  public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+  public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+  }
 
   @Bean
   public UserDetailsService userDetailsService() {
@@ -93,6 +95,7 @@ public class SecurityConfig {
     http.authenticationProvider(authenticationProvider());
 
     http.authorizeHttpRequests(auth -> auth
+        // Preflight
         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
         // Auth
@@ -103,13 +106,16 @@ public class SecurityConfig {
             "/api/banners/public",
             "/api/news/public/**",
             "/api/categories/tree",
-            "/api/products/**"
+            "/api/products/**",
+            "/api/flash-sales/**",
+            // 👇 Thêm whitelist cho tồn kho đọc:
+            "/api/inventory/stock/**"
         ).permitAll()
 
         // Mọi API còn lại cần ĐĂNG NHẬP (quyền chi tiết do @PreAuthorize trong controller)
         .requestMatchers("/api/**").authenticated()
 
-        // Những tài nguyên khác (nếu có)
+        // Tài nguyên khác (nếu có)
         .anyRequest().permitAll()
     );
 

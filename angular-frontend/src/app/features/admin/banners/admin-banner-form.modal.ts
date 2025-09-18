@@ -10,15 +10,15 @@ import { Banner } from '../../../core/models';
   selector: 'app-admin-banner-form-modal',
   imports: [CommonModule, FormsModule],
   styles: [`
-    /* Overlay chỉ làm mờ nền, KHÔNG ảnh hưởng panel */
-    .backdrop{ @apply fixed inset-0 bg-black/25 z-[90]; }
-    .modal{ @apply fixed inset-0 z-[100] flex items-center justify-center p-4; }
-
-    /* Panel rõ nét */
+    /* ===== Overlay & Modal (fix bị "ẩn" do z-index) ===== */
+    .modal{ @apply fixed inset-0 z-[10000] flex items-center justify-center p-4; }
+    /* backdrop nằm dưới panel, không đặt z-index ở đây */
+    .backdrop{ @apply absolute inset-0 bg-black/40; }
+    /* panel nổi hẳn lên trên backdrop */
     .panel{
-      @apply w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden;
-      opacity: 1; backdrop-filter: none;
+      @apply relative z-[10] w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden;
     }
+
     .head{ @apply px-5 py-3 border-b flex items-center justify-between; }
     .body{ @apply p-5 grid gap-4 max-h-[70vh] overflow-auto; }
     .foot{ @apply px-5 py-3 border-t flex items-center justify-between gap-2; }
@@ -34,7 +34,6 @@ import { Banner } from '../../../core/models';
              bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700
              focus:outline-none focus:ring-2 focus:ring-rose-200;
     }
-    /* đổi sang đỏ solid */
     .btn-danger{
       @apply rounded-xl px-3 py-2 font-medium text-white bg-rose-600 hover:bg-rose-700
              focus:outline-none focus:ring-2 focus:ring-rose-200;

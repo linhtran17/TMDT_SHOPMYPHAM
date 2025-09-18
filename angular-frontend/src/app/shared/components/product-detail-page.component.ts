@@ -1,0 +1,222 @@
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+
+import { ProductService } from '../../core/services/product.service';
+import { ProductResponse, ProductVariant } from '../../core/models/product.model';
+
+@Component({
+  standalone: true,
+  selector: 'app-product-detail-page',
+  imports: [CommonModule, FormsModule],
+  styles: [`
+    .wrap{ @apply max-w-6xl mx-auto p-4 md:p-6; }
+    .grid2{ @apply grid md:grid-cols-2 gap-6; }
+    .gallery{ @apply bg-white rounded-2xl border p-3; }
+    .mainimg{ @apply w-full aspect-[4/3] object-cover rounded-xl border; }
+    .thumbs{ @apply mt-3 grid grid-cols-5 gap-2; }
+    .thumb{ @apply w-full aspect-square object-cover rounded-lg border cursor-pointer; }
+    .thumb.active{ @apply ring-2 ring-rose-500; }
+    .title{ @apply text-2xl font-extrabold; }
+    .price{ @apply text-rose-600 text-2xl font-bold; }
+    .price-old{ @apply text-slate-400 line-through ml-2; }
+    .opt-label{ @apply text-sm font-medium mb-1; }
+    .opt-select{ @apply w-full rounded-lg border border-slate-200 px-3 py-2 text-sm; }
+    .btn{ @apply inline-flex items-center gap-2 rounded-lg border border-rose-200 px-4 py-2 hover:bg-rose-50; }
+    .btn-primary{ @apply bg-rose-600 text-white border-rose-600 hover:bg-rose-700; }
+    .badge{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600; }
+    .attrs{ @apply grid md:grid-cols-2 gap-x-6 gap-y-2; }
+  `],
+  template: `
+  <div class="wrap" *ngIf="product as p; else loading">
+    <div class="grid2">
+
+      <!-- Gallery -->
+      <div class="gallery">
+        <img class="mainimg" [src]="mainImage()" (error)="onMainErr($event)">
+        <div class="thumbs">
+          <img *ngFor="let u of galleryImages(); let i = index"
+               class="thumb" [class.active]="i===thumbIndex"
+               [src]="u" (click)="thumbIndex=i" (error)="onThumbErr($event)">
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div>
+        <!-- Fix NG8107: p đã được đảm bảo không null nhờ *ngIf="product as p" -->
+        <h1 class="title">{{ p.name }}</h1>
+        <div class="mt-1 text-slate-500">SKU: {{ currentSku() || (p.sku || '—') }}</div>
+        <div class="mt-3">
+          <ng-container *ngIf="currentSalePrice() != null && (currentSalePrice()! < currentPrice()!); else onlyPrice">
+            <span class="price">{{ currentSalePrice()! | number:'1.0-0' }} đ</span>
+            <span class="price-old">{{ currentPrice()! | number:'1.0-0' }} đ</span>
+          </ng-container>
+          <ng-template #onlyPrice>
+            <span class="price">{{ currentPrice()! | number:'1.0-0' }} đ</span>
+          </ng-template>
+        </div>
+        <div class="mt-1">
+          <span class="badge">Tồn: {{ currentStock() }}</span>
+        </div>
+
+        <!-- Options (when hasVariants) -->
+        <div *ngIf="p.hasVariants" class="mt-4 grid gap-3">
+          <div *ngFor="let name of optionNames" class="grid">
+            <label class="opt-label">{{ name }}</label>
+            <select class="opt-select" [(ngModel)]="selected[name]" (change)="onOptionChange()">
+              <option [ngValue]="undefined">— Chọn {{ name }} —</option>
+              <option *ngFor="let v of options[name]" [ngValue]="v">{{ v }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center gap-2">
+          <button class="btn btn-primary" [disabled]="!canAddToCart()" (click)="addToCart()">
+            Thêm vào giỏ
+          </button>
+          <button class="btn" (click)="buyNow()" [disabled]="!canAddToCart()">Mua ngay</button>
+        </div>
+
+        <div class="mt-6 prose max-w-none" *ngIf="p.shortDesc">
+          <p class="text-slate-700">{{ p.shortDesc }}</p>
+        </div>
+
+        <!-- Attributes -->
+        <div class="mt-6">
+          <div class="font-semibold mb-2">Thông tin</div>
+          <div class="attrs">
+            <div *ngFor="let a of (p.attributes || [])" class="flex justify-between">
+              <div class="text-slate-500">{{ a.name }}</div>
+              <div>{{ a.value }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Description full -->
+    <div class="mt-10 bg-white rounded-2xl border p-5">
+      <div class="font-semibold mb-3">Mô tả chi tiết</div>
+      <div class="text-slate-700 whitespace-pre-line">{{ p.description || 'Đang cập nhật…' }}</div>
+    </div>
+  </div>
+
+  <ng-template #loading>
+    <div class="wrap">Đang tải sản phẩm…</div>
+  </ng-template>
+  `
+})
+export class ProductDetailPageComponent implements OnInit {
+  private route = inject(ActivatedRoute);
+  private products = inject(ProductService);
+
+  product?: ProductResponse;
+
+  thumbIndex = 0;
+  placeholder = 'assets/img/placeholder.svg';
+
+  optionNames: string[] = [];
+  options: Record<string,string[]> = {};
+  selected: Record<string, string|undefined> = {};
+  matching?: ProductVariant;
+
+  ngOnInit(){
+    const id = +this.route.snapshot.paramMap.get('id')!;
+    this.products.get(id).subscribe({
+      next: (p) => { this.product = p; this.buildOptions(); this.onOptionChange(); },
+      error: () => {}
+    });
+  }
+
+  // ===== Gallery helpers =====
+  galleryImages(): string[] {
+    if (!this.product) return [];
+    const imgs = (this.product.images || []);
+    if (this.matching?.id){
+      const vs = imgs.filter(x => x.variantId === this.matching!.id).map(x=>x.url);
+      if (vs.length) return vs;
+    }
+    const ps = imgs.filter(x => !x.variantId).map(x=>x.url);
+    return ps.length ? ps : [this.placeholder];
+  }
+  mainImage(){ return this.galleryImages()[this.thumbIndex] || this.placeholder; }
+  onMainErr(e: Event){ (e.target as HTMLImageElement).src = this.placeholder; }
+  onThumbErr(e: Event){ (e.target as HTMLImageElement).src = this.placeholder; }
+
+  // ===== Options/variants =====
+  buildOptions(){
+    if (!this.product?.hasVariants){ this.optionNames = []; this.options = {}; return; }
+    const variants = (this.product.variants || []) as ProductVariant[];
+    const names = new Set<string>();
+    for (const v of variants){
+      const opts = v.options || {} as any;
+      Object.keys(opts).forEach(k => names.add(k));
+    }
+    this.optionNames = Array.from(names);
+    const map: Record<string,Set<string>> = {} as any;
+    for (const n of this.optionNames) map[n] = new Set<string>();
+    for (const v of variants){
+      const opts = v.options || {} as any;
+      for (const n of this.optionNames){
+        const val = opts[n];
+        if (val) map[n].add(String(val));
+      }
+    }
+    this.options = Object.fromEntries(this.optionNames.map(n => [n, Array.from(map[n])])) as any;
+
+    // preselect first values
+    for (const n of this.optionNames){
+      if (this.options[n]?.length){ this.selected[n] = this.options[n][0]; }
+    }
+  }
+
+  onOptionChange(){
+    if (!this.product?.hasVariants){ this.matching = undefined; return; }
+    const variants = (this.product.variants || []) as ProductVariant[];
+    this.matching = variants.find(v => {
+      const opts = v.options || {} as any;
+      return this.optionNames.every(n => !this.selected[n] || opts[n] === this.selected[n]);
+    });
+    this.thumbIndex = 0;
+  }
+
+  currentPrice(){
+    if (!this.product) return 0;
+    if (this.product.hasVariants){ return this.matching?.price ?? 0; }
+    return this.product.price ?? 0;
+  }
+  currentSalePrice(){
+    if (!this.product) return null;
+    if (this.product.hasVariants){ return this.matching?.salePrice ?? null; }
+    return this.product.salePrice ?? null;
+  }
+  currentStock(){
+    if (!this.product) return 0;
+    if (this.product.hasVariants){ return this.matching?.stock ?? 0; }
+    return this.product.stock ?? 0;
+  }
+  currentSku(){
+    if (this.product?.hasVariants) return this.matching?.sku || '';
+    return this.product?.sku || '';
+  }
+
+  canAddToCart(){
+    if (!this.product) return false;
+    if (this.product.hasVariants){ return !!this.matching && (this.matching.stock||0) > 0; }
+    return (this.product.stock||0) > 0;
+  }
+
+  addToCart(){
+    console.log('ADD_TO_CART', {
+      productId: this.product?.id,
+      variantId: this.matching?.id || null,
+      qty: 1
+    });
+    alert('Đã thêm vào giỏ');
+  }
+  buyNow(){
+    if (!this.canAddToCart()) return;
+    this.addToCart();
+  }
+}

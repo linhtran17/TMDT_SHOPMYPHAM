@@ -1,0 +1,955 @@
+
+
+/* =========================================================
+   0) DATABASE
+   ========================================================= */
+SET NAMES utf8mb4;
+CREATE DATABASE IF NOT EXISTS shopmypham
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE shopmypham;
+
+/* =========================================================
+   1) AUTH / RBAC / USERS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS roles (
+  id   BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  KEY idx_roles_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS permissions (
+  id   BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(150) NOT NULL UNIQUE,
+  description VARCHAR(255),
+  KEY idx_permissions_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS users (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  full_name    VARCHAR(255),
+  email        VARCHAR(255) NOT NULL UNIQUE,
+  password     VARCHAR(255) NOT NULL,
+  phone        VARCHAR(20),
+  address      TEXT,
+  avatar_url   VARCHAR(500),
+  enabled      TINYINT(1) DEFAULT 1,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_id       BIGINT NOT NULL,
+  permission_id BIGINT NOT NULL,
+  PRIMARY KEY (role_id, permission_id),
+  CONSTRAINT fk_rp_role FOREIGN KEY (role_id) REFERENCES roles(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_rp_perm FOREIGN KEY (permission_id) REFERENCES permissions(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   2) CATEGORIES (taxonomy)
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS categories (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  parent_id   BIGINT NULL,
+  name        VARCHAR(150) NOT NULL,
+  slug        VARCHAR(200) UNIQUE,
+  description VARCHAR(255),
+  image_url   VARCHAR(500),
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cat_parent FOREIGN KEY (parent_id) REFERENCES categories(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  KEY idx_cat_parent (parent_id),
+  KEY idx_cat_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   3) PRODUCTS / VARIANTS / IMAGES / ATTRIBUTES
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS products (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name         VARCHAR(255) NOT NULL,
+  sku          VARCHAR(100) UNIQUE,
+  price        DECIMAL(19,2) NOT NULL,
+  sale_price   DECIMAL(19,2) NULL,
+  description  TEXT,
+  short_desc   VARCHAR(500),
+  category_id  BIGINT NOT NULL,
+  featured     TINYINT(1) DEFAULT 0,
+  has_variants TINYINT(1) NOT NULL DEFAULT 0,
+  active       TINYINT(1) DEFAULT 1,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT chk_price_pos CHECK (price >= 0),
+  CONSTRAINT chk_sale_le_price CHECK (sale_price IS NULL OR sale_price <= price),
+  KEY idx_products_price (price),
+  KEY idx_products_active_cat (active, category_id, featured)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  sku         VARCHAR(100) UNIQUE,
+  price       DECIMAL(19,2) NOT NULL,
+  sale_price  DECIMAL(19,2) NULL,
+  options_json JSON NULL,         -- ví dụ: {"Color":"#01","Size":"50ml"}
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pv_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT chk_pv_price_pos CHECK (price >= 0),
+  CONSTRAINT chk_pv_sale_le_price CHECK (sale_price IS NULL OR sale_price <= price),
+  KEY idx_pv_product (product_id),
+  KEY idx_pv_active  (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  variant_id  BIGINT NULL,                -- ảnh gắn với biến thể (nếu có)
+  url         VARCHAR(1024) NOT NULL,
+  public_id   VARCHAR(255) NULL,
+  alt         VARCHAR(255),
+  sort_order  INT DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_img_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_pi_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  KEY idx_pi_product_sort (product_id, sort_order),
+  KEY idx_pi_variant (variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS product_attributes (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  name        VARCHAR(100) NOT NULL,
+  value       VARCHAR(255) NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_attr_product FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  KEY idx_attr_product (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   4) CONTENT: BANNERS / NEWS / FAQ
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS banners (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title       VARCHAR(255),
+  image_url   VARCHAR(1024) NOT NULL,
+  public_id   VARCHAR(255),
+  link        VARCHAR(1024),
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_banner_active (active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS news (
+  id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title           VARCHAR(255) NOT NULL,
+  slug            VARCHAR(180) NOT NULL UNIQUE,
+  cover_image_url VARCHAR(500),
+  excerpt         VARCHAR(500),
+  content         LONGTEXT,
+  author_id       BIGINT NOT NULL,
+  active          TINYINT(1) DEFAULT 1,
+  published_at    DATETIME NULL,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_news_author FOREIGN KEY (author_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  KEY idx_news_active (active, published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+
+///donep1===============
+
+
+
+ 10) FLASH SALES + VIEW
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS flash_sales (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(180) NOT NULL UNIQUE,
+  discount_type ENUM('percentage','fixed') NULL,
+  discount_value DECIMAL(10,2) NULL,
+  start_at DATETIME NOT NULL,
+  end_at   DATETIME NOT NULL,
+  priority INT DEFAULT 0,
+  active TINYINT(1) DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_fs_active_time (active, start_at, end_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS flash_sale_items (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  flash_sale_id BIGINT NOT NULL,
+  product_id    BIGINT NOT NULL,
+  deal_price    DECIMAL(19,2) NULL,
+  sort_order    INT DEFAULT 0,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (flash_sale_id) REFERENCES flash_sales(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (product_id)    REFERENCES products(id)    ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uk_fs_product (flash_sale_id, product_id),
+  KEY idx_fsi_product (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE OR REPLACE VIEW v_active_flash_deals AS
+SELECT
+  p.id AS product_id, p.name, p.sku, p.price AS base_price,
+  CASE
+    WHEN fsi.deal_price IS NOT NULL THEN fsi.deal_price
+    WHEN fs.discount_type='percentage' THEN ROUND(p.price * (1 - fs.discount_value/100), 0)
+    WHEN fs.discount_type='fixed' THEN GREATEST(p.price - fs.discount_value, 0)
+    ELSE p.price
+  END AS final_price,
+  fs.id AS flash_id, fs.name AS flash_name, fs.start_at, fs.end_at, fs.priority, fsi.sort_order
+FROM flash_sales fs
+JOIN flash_sale_items fsi ON fsi.flash_sale_id = fs.id
+JOIN products p           ON p.id = fsi.product_id
+WHERE fs.active=1 AND NOW() BETWEEN fs.start_at AND fs.end_at AND p.active=1;
+
+-- =========================================
+-- FLASH SALE 5 NGÀY (idempotent)
+-- =========================================
+SET time_zone = '+07:00';
+
+-- 1) Tạo đợt sale 5 ngày, ưu tiên cao
+INSERT INTO flash_sales(name, slug, discount_type, discount_value, start_at, end_at, priority, active)
+SELECT 'Flash 5 Ngày - Khai trương', 'flash-5day-demo', 'percentage', 20,
+       NOW(), DATE_ADD(NOW(), INTERVAL 5 DAY), 100, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM flash_sales WHERE slug = 'flash-5day-demo'
+);
+
+-- 2) Gắn sản phẩm vào sale (không trùng nếu đã có)
+INSERT INTO flash_sale_items(flash_sale_id, product_id, deal_price, sort_order)
+SELECT fs.id, p.id, NULL AS deal_price, dp.sort_order
+FROM flash_sales fs
+JOIN (
+  SELECT 1001 AS pid,  1 AS sort_order UNION ALL
+  SELECT 1002,         2 UNION ALL
+  SELECT 1003,         3 UNION ALL
+  SELECT 1004,         4 UNION ALL
+  SELECT 1005,         5 UNION ALL
+  SELECT 1006,         6 UNION ALL
+  SELECT 1007,         7 UNION ALL
+  SELECT 1014,         8 UNION ALL
+  SELECT 1015,         9 UNION ALL
+  SELECT 1016,        10
+) dp ON 1=1
+JOIN products p ON p.id = dp.pid
+LEFT JOIN flash_sale_items fsi
+  ON fsi.flash_sale_id = fs.id AND fsi.product_id = p.id
+WHERE fs.slug = 'flash-5day-demo'
+  AND fsi.id IS NULL;
+
+-- 3) Kiểm tra dữ liệu view đang active
+SELECT * FROM v_active_flash_deals
+ORDER BY priority DESC, sort_order ASC
+LIMIT 20;
+
+
+======done phan2
+ 7) SUPPLIERS + INVENTORY MOVEMENTS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS suppliers (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name       VARCHAR(255) NOT NULL,
+  phone      VARCHAR(50),
+  email      VARCHAR(150),
+  address    VARCHAR(255),
+  note       VARCHAR(255),
+  active     TINYINT(1) DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE suppliers ADD COLUMN code VARCHAR(50);
+ALTER TABLE suppliers ADD COLUMN tax_code VARCHAR(50);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id BIGINT NOT NULL,
+  variant_id BIGINT NULL,
+  change_qty INT NOT NULL, /* + nhập / - xuất */
+  reason ENUM(
+    'purchase','purchase_return',
+    'order','refund',
+    'adjustment','manual','initial',
+    'cancel'
+  ) NOT NULL DEFAULT 'manual',
+  ref_id BIGINT NULL,
+  supplier_id BIGINT NULL,
+  unit_cost DECIMAL(19,2) NULL,
+  doc_no VARCHAR(80) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_inv_product FOREIGN KEY (product_id)
+    REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_inv_variant FOREIGN KEY (variant_id)
+    REFERENCES product_variants(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_inv_supplier FOREIGN KEY (supplier_id)
+    REFERENCES suppliers(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  KEY idx_inv_prod_var (product_id, variant_id),
+  KEY idx_inv_reason_created (reason, created_at),
+  KEY idx_inv_supplier (supplier_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE INDEX idx_inv_prod_created ON inventory_movements(product_id, created_at);
+ALTER TABLE inventory_movements
+CREATE INDEX idx_inv_doc_no ON inventory_movements(doc_no);
+
+  ADD CONSTRAINT chk_change_qty_nonzero CHECK (change_qty <> 0);
+
+
+
+
+
+
+
+
+=====================================
+
+CREATE TABLE IF NOT EXISTS faqs (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) DEFAULT 1,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   5) CART / WISHLIST (HỖ TRỢ VARIANT)
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS carts (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS cart_items (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  cart_id    BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  variant_id BIGINT NULL,
+  options_snapshot JSON NULL,         -- lưu lại lựa chọn option tại thời điểm thêm
+  quantity   INT NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ci_cart    FOREIGN KEY (cart_id)    REFERENCES carts(id)    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ci_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_ci_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT chk_ci_qty_pos CHECK (quantity > 0),
+  UNIQUE KEY uk_cartitem_cart_prod_var (cart_id, product_id, variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wishlists (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_wishlist_user    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_wishlist_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uk_wishlist_user_product (user_id, product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   6) ORDERS / PAYMENTS / SHIPPING / INVENTORY
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS orders (
+  id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_code      VARCHAR(50) NOT NULL UNIQUE,
+  user_id         BIGINT NULL,
+  status          ENUM('pending','confirmed','processing','shipped','delivered','cancelled') DEFAULT 'pending',
+  payment_method  VARCHAR(50),
+  payment_status  ENUM('pending','paid','failed') DEFAULT 'pending',
+
+  subtotal_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_fee    DECIMAL(19,2) NOT NULL DEFAULT 0,
+  tax_amount      DECIMAL(19,2) NOT NULL DEFAULT 0,
+  total_amount    DECIMAL(19,2) NOT NULL,
+
+  customer_name   VARCHAR(255) NOT NULL,
+  customer_email  VARCHAR(255) NOT NULL,
+  customer_phone  VARCHAR(20)  NOT NULL,
+  shipping_province  VARCHAR(100) NULL,
+  shipping_district  VARCHAR(100) NULL,
+  shipping_ward      VARCHAR(100) NULL,
+  shipping_address1  VARCHAR(255) NULL,
+  shipping_address2  VARCHAR(255) NULL,
+  note TEXT,
+
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_order_user FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  KEY idx_orders_user_created (user_id, created_at),
+  KEY idx_orders_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id       BIGINT NOT NULL,
+  product_id     BIGINT NOT NULL,
+  variant_id     BIGINT NULL,
+  product_sku    VARCHAR(100),
+  product_name   VARCHAR(255) NOT NULL,
+  options_snapshot JSON NULL,       -- snapshot option của biến thể
+  unit_price     DECIMAL(19,2) NOT NULL,
+  quantity       INT NOT NULL,
+  line_total     DECIMAL(19,2) NOT NULL,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_oi_order   FOREIGN KEY (order_id)   REFERENCES orders(id)   ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT fk_oi_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT chk_oi_qty_pos CHECK (quantity > 0),
+  KEY idx_order_items_order   (order_id),
+  KEY idx_order_items_product (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS order_status_history (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  from_status ENUM('pending','confirmed','processing','shipped','delivered','cancelled') NULL,
+  to_status   ENUM('pending','confirmed','processing','shipped','delivered','cancelled') NOT NULL,
+  changed_by  BIGINT NULL,
+  note        VARCHAR(255),
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_osh_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  provider VARCHAR(50),                 -- 'COD','VNPay','MoMo','ZaloPay',...
+  transaction_ref VARCHAR(100) UNIQUE,
+  amount DECIMAL(19,2) NOT NULL,
+  currency VARCHAR(10) DEFAULT 'VND',
+  status ENUM('initiated','pending','success','failed','refunded') DEFAULT 'initiated',
+  paid_at DATETIME NULL,
+  raw_payload JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pay_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS shipments (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  carrier VARCHAR(100),
+  tracking_code VARCHAR(100),
+  shipped_at DATETIME NULL,
+  delivered_at DATETIME NULL,
+  status ENUM('ready','shipped','delivered','returned','lost') DEFAULT 'ready',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ship_order FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+/* =========================================================
+   12) SUPPLIERS + INVENTORY MOVEMENTS
+   ========================================================= */
+
+-- 12.1) Nhà cung cấp
+CREATE TABLE IF NOT EXISTS suppliers (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name       VARCHAR(255) NOT NULL,
+  phone      VARCHAR(50),
+  email      VARCHAR(150),
+  address    VARCHAR(255),
+  note       VARCHAR(255),
+  active     TINYINT(1) DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 12.2) Sổ kho (đã có supplier + unit_cost + doc_no)
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id BIGINT NOT NULL,
+  variant_id BIGINT NULL,
+  change_qty INT NOT NULL, -- + nhập / - xuất
+  reason ENUM(
+    'purchase','purchase_return',     -- nhập từ / trả về NCC
+    'order','refund',                 -- xuất bán / khách trả
+    'adjustment','manual','initial',  -- kiểm kê / thủ công / tồn đầu
+    'cancel'                          -- tuỳ bạn dùng cho luồng huỷ
+  ) NOT NULL DEFAULT 'manual',
+  ref_id BIGINT NULL,                 -- id chứng từ tham chiếu (nếu có)
+  supplier_id BIGINT NULL,            -- gắn NCC cho dòng nhập/trả NCC
+  unit_cost DECIMAL(19,2) NULL,       -- giá nhập tại thời điểm movement
+  doc_no VARCHAR(80) NULL,            -- số HĐ/phiếu NCC (tuỳ chọn)
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_inv_product FOREIGN KEY (product_id)
+    REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_inv_variant FOREIGN KEY (variant_id)
+    REFERENCES product_variants(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT fk_inv_supplier FOREIGN KEY (supplier_id)
+    REFERENCES suppliers(id) ON DELETE SET NULL ON UPDATE CASCADE,
+
+  KEY idx_inv_prod_var (product_id, variant_id),
+  KEY idx_inv_reason_created (reason, created_at),
+  KEY idx_inv_supplier (supplier_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   7) REVIEWS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS reviews (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id  BIGINT NOT NULL,
+  user_id     BIGINT NOT NULL,
+  order_id    BIGINT NULL,
+  rating      TINYINT NOT NULL,
+  comment     TEXT,
+  status      ENUM('pending','approved','rejected') DEFAULT 'pending',
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT chk_rating_range CHECK (rating BETWEEN 1 AND 5),
+  CONSTRAINT fk_rev_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_rev_user    FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_rev_order   FOREIGN KEY (order_id)   REFERENCES orders(id)   ON DELETE SET NULL ON UPDATE CASCADE,
+  KEY idx_reviews_product (product_id),
+  KEY idx_reviews_user    (user_id),
+  KEY idx_reviews_status  (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   8) COUPONS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS coupons (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  code              VARCHAR(50) NOT NULL UNIQUE,
+  description       TEXT,
+  discount_type     ENUM('percentage','fixed') NOT NULL,
+  discount_value    DECIMAL(10,2) NOT NULL,
+  min_order_amount  DECIMAL(19,2) DEFAULT 0,
+  max_discount_amount DECIMAL(19,2) DEFAULT NULL,
+  start_date        DATETIME NOT NULL,
+  end_date          DATETIME NOT NULL,
+  usage_limit       INT DEFAULT NULL,
+  used_count        INT DEFAULT 0,
+  active            TINYINT(1) DEFAULT 1,
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_coupons_active (active, end_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS coupon_usage (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  coupon_id  BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  order_id   BIGINT NOT NULL,
+  used_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (coupon_id) REFERENCES coupons(id)  ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (user_id)   REFERENCES users(id)    ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (order_id)  REFERENCES orders(id)   ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE KEY uk_coupon_order (order_id),
+  UNIQUE KEY uk_coupon_user  (coupon_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS coupon_products (
+  coupon_id  BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  PRIMARY KEY (coupon_id, product_id),
+  FOREIGN KEY (coupon_id)  REFERENCES coupons(id)  ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS coupon_categories (
+  coupon_id   BIGINT NOT NULL,
+  category_id BIGINT NOT NULL,
+  PRIMARY KEY (coupon_id, category_id),
+  FOREIGN KEY (coupon_id)   REFERENCES coupons(id)    ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+   9) SUPPORT / TICKETS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  ticket_code  VARCHAR(50) NOT NULL UNIQUE,
+  user_id      BIGINT NOT NULL,
+  subject      VARCHAR(255) NOT NULL,
+  message      TEXT NOT NULL,
+  status       ENUM('open','in_progress','resolved','closed') DEFAULT 'open',
+  priority     ENUM('low','medium','high') DEFAULT 'medium',
+  assigned_to  BIGINT NULL,
+  resolved_at  DATETIME NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id)     REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  KEY idx_tickets_user (user_id),
+  KEY idx_tickets_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_replies (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  ticket_id   BIGINT NOT NULL,
+  user_id     BIGINT NOT NULL,
+  message     TEXT NOT NULL,
+  is_internal TINYINT(1) DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (user_id)   REFERENCES users(id)          ON DELETE CASCADE ON UPDATE CASCADE,
+  KEY idx_ticket_replies_ticket (ticket_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/* =========================================================
+  
+/* =========================================================
+   11) SEED TỐI THIỂU
+   ========================================================= */
+INSERT IGNORE INTO roles(name) VALUES ('ROLE_ADMIN'), ('ROLE_USER'), ('ROLE_SELLER');
+
+INSERT IGNORE INTO permissions(name, description) VALUES
+('product:read', 'Xem sản phẩm'),
+('product:create', 'Tạo sản phẩm'),
+('product:update', 'Sửa sản phẩm'),
+('product:delete', 'Xoá sản phẩm'),
+('category:read', 'Xem danh mục'),
+('category:create', 'Tạo danh mục'),
+('category:update', 'Sửa danh mục'),
+('category:delete', 'Xoá danh mục'),
+('user:read', 'Xem người dùng'),
+('user:update', 'Sửa người dùng'),
+('user:delete', 'Xoá người dùng'),
+('banner:read', 'Xem banner'),
+('banner:create', 'Tạo banner'),
+('banner:update', 'Sửa banner'),
+('banner:delete', 'Xoá banner'),
+('media:upload', 'Upload media'),
+('media:delete', 'Delete media'),
+('news:read', 'Xem tin tức'),
+('news:create', 'Tạo tin tức'),
+('news:update', 'Sửa tin tức'),
+('news:delete', 'Xoá tin tức'),
+('role:read','Xem vai trò'),
+('role:create','Tạo vai trò'),
+('role:update','Sửa vai trò'),
+('role:delete','Xoá vai trò'),
+('permission:read','Xem danh sách quyền'),
+('order:read', 'Xem đơn hàng'),
+('order:update', 'Cập nhật đơn hàng'),
+('order:delete', 'Xoá đơn hàng'),
+('coupon:read', 'Xem coupon'),
+('coupon:create', 'Tạo coupon'),
+('coupon:update', 'Sửa coupon'),
+('coupon:delete', 'Xoá coupon'),
+('review:read', 'Xem đánh giá'),
+('review:update', 'Cập nhật đánh giá'),
+('review:delete', 'Xoá đánh giá'),
+('ticket:read', 'Xem ticket'),
+('ticket:update', 'Cập nhật ticket'),
+('ticket:delete', 'Xoá ticket');
+
+======
+INSERT INTO permissions (name, description) VALUES
+ ('supplier:read',   'Xem nhà cung cấp'),
+ ('supplier:create', 'Tạo nhà cung cấp'),
+ ('supplier:update', 'Sửa nhà cung cấp'),
+ ('supplier:delete', 'Xoá nhà cung cấp'),
+ -- alias cũ (nếu đang dùng @PreAuthorize('supplier:write'))
+ ('supplier:write',  'Quản lý nhà cung cấp (alias)')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- INVENTORY (sổ kho)
+INSERT INTO permissions (name, description) VALUES
+ ('inventory:read',   'Xem sổ kho & tồn kho'),
+ ('inventory:create', 'Ghi sổ kho (nhập/xuất/điều chỉnh)'),
+ ('inventory:update', 'Sửa bút toán sổ kho'),
+ ('inventory:delete', 'Xoá bút toán sổ kho'),
+ -- alias cũ (nếu đang dùng @PreAuthorize('inventory:write'))
+ ('inventory:write',  'Ghi sổ kho (alias)')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT IGNORE INTO role_permissions(role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.name IN (
+  'supplier:read','supplier:create','supplier:update','supplier:delete','supplier:write',
+  'inventory:read','inventory:create','inventory:update','inventory:delete','inventory:write'
+)
+WHERE r.name = 'ADMIN';
+
+=========
+============
+============
+ALTER TABLE role_permissions
+  ADD UNIQUE KEY uk_role_perm (role_id, permission_id);
+INSERT INTO permissions (name, description) VALUES
+ ('supplier:read',   'Xem nhà cung cấp'),
+ ('supplier:create', 'Tạo nhà cung cấp'),
+ ('supplier:update', 'Sửa nhà cung cấp'),
+ ('supplier:delete', 'Xoá nhà cung cấp'),
+ ('supplier:write',  'Quản lý nhà cung cấp (alias)')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO permissions (name, description) VALUES
+ ('inventory:read',   'Xem sổ kho & tồn kho'),
+ ('inventory:create', 'Ghi sổ kho (nhập/xuất/điều chỉnh)'),
+ ('inventory:update', 'Sửa bút toán sổ kho'),
+ ('inventory:delete', 'Xoá bút toán sổ kho'),
+ ('inventory:write',  'Ghi sổ kho (alias)')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+-- lấy id ROLE_ADMIN
+SET @role_admin := (SELECT id FROM roles WHERE name = 'ROLE_ADMIN' LIMIT 1);
+
+-- gán tất cả quyền supplier + inventory cho ROLE_ADMIN
+INSERT IGNORE INTO role_permissions(role_id, permission_id)
+SELECT @role_admin, p.id
+FROM permissions p
+WHERE p.name IN (
+  'supplier:read','supplier:create','supplier:update','supplier:delete','supplier:write',
+  'inventory:read','inventory:create','inventory:update','inventory:delete','inventory:write'
+);
+
+===========
+=========
+-- Gán full quyền cho ADMIN
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name='ROLE_ADMIN';
+
+-- Quyền cơ bản cho USER
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r
+JOIN permissions p ON p.name IN ('product:read','category:read','banner:read','news:read')
+WHERE r.name='ROLE_USER';
+
+-- Quyền cho SELLER
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r
+JOIN permissions p ON p.name IN (
+  'product:read','product:create','product:update',
+  'category:read','order:read','order:update',
+  'banner:read','news:read','review:read'
+)
+WHERE r.name='ROLE_SELLER';
+
+-- Admin mẫu (bcrypt minh hoạ; đổi sau)
+INSERT IGNORE INTO users (full_name, email, password, phone, address, enabled) VALUES
+('Quản trị viên', 'admin@shopmypham.com',
+ '$2a$10$yCZqY6u7v7cQJ1m4c6uH9On7iQpXj1P6m4BqQ0p2zRvJc1sYls8eW', -- 'admin123' demo
+ '0123456789', 'Hà Nội', 1);
+
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id FROM users u, roles r
+WHERE u.email='admin@shopmypham.com' AND r.name='ROLE_ADMIN';
+
+
+-- Banners
+INSERT IGNORE INTO banners (title, image_url, link, sort_order, active) VALUES
+('Khuyến mãi đặc biệt','/images/banners/banner1.jpg','/promotion',1,1),
+('Sản phẩm mới','/images/banners/banner2.jpg','/new-products',2,1),
+('Chăm sóc da mùa hè','/images/banners/banner3.jpg','/skincare',3,1);
+
+-- FAQs
+INSERT IGNORE INTO faqs (question, answer, sort_order) VALUES
+('Làm thế nào để đặt hàng?','Bạn có thể đặt hàng trực tuyến bằng cách thêm sản phẩm vào giỏ hàng và thanh toán.',1),
+('Thời gian giao hàng bao lâu?','Từ 2-5 ngày làm việc tuỳ khu vực.',2),
+('Chính sách đổi trả?','Đổi trả trong 7 ngày nếu còn nguyên seal/hộp.',3);
+
+-- Coupons demo
+INSERT IGNORE INTO coupons (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, start_date, end_date, usage_limit, active)
+VALUES
+('WELCOME10','Giảm 10% đơn đầu','percentage',10,200000,50000,NOW(),DATE_ADD(NOW(), INTERVAL 30 DAY),1000,1),
+('FREESHIP','Miễn phí vận chuyển','fixed',30000,300000,30000,NOW(),DATE_ADD(NOW(), INTERVAL 15 DAY),500,1);
+========================================================================================================================
+SET FOREIGN_KEY_CHECKS = 0;
+
+INSERT INTO categories (id, parent_id, name, slug, description, image_url, sort_order, active)
+VALUES
+  (1 , NULL, 'Chăm sóc da', 'cham-soc-da', 'Skincare root', NULL, 1, 1),
+    (2 , 1, 'Sữa rửa mặt', 'sua-rua-mat', NULL, NULL, 1, 1),
+    (3 , 1, 'Toner', 'toner', NULL, NULL, 2, 1),
+    (4 , 1, 'Serum', 'serum', NULL, NULL, 3, 1),
+    (5 , 1, 'Kem dưỡng', 'kem-duong', NULL, NULL, 4, 1),
+    (6 , 1, 'Chống nắng', 'chong-nang', NULL, NULL, 5, 1),
+    (7 , 1, 'Mặt nạ', 'mat-na', NULL, NULL, 6, 1),
+  (8 , NULL, 'Trang điểm', 'trang-diem', 'Makeup root', NULL, 2, 1),
+    (9 , 8, 'Son môi', 'son-moi', NULL, NULL, 1, 1),
+    (10, 8, 'Kem nền', 'kem-nen', NULL, NULL, 2, 1),
+    (11, 8, 'Mascara', 'mascara', NULL, NULL, 3, 1),
+  (12, NULL, 'Chăm sóc tóc', 'cham-soc-toc', 'Haircare root', NULL, 3, 1),
+    (13, 12, 'Dầu gội', 'dau-goi', NULL, NULL, 1, 1),
+    (14, 12, 'Dầu xả', 'dau-xa', NULL, NULL, 2, 1),
+    (15, 12, 'Dưỡng tóc', 'duong-toc', NULL, NULL, 3, 1),
+  (16, NULL, 'Chăm sóc cơ thể', 'cham-soc-co-the', 'Bodycare root', NULL, 4, 1),
+    (17, 16, 'Sữa tắm', 'sua-tam', NULL, NULL, 1, 1),
+    (18, 16, 'Body lotion', 'body-lotion', NULL, NULL, 2, 1),
+  (19, NULL, 'Nước hoa', 'nuoc-hoa', 'Fragrance root', NULL, 5, 1),
+    (20, 19, 'EDT', 'edt', NULL, NULL, 1, 1),
+    (21, 19, 'EDP', 'edp', NULL, NULL, 2, 1);
+
+
+    INSERT INTO categories (id, parent_id, name, slug, description, image_url, sort_order, active)
+VALUES
+  (1 , NULL, 'Chăm sóc da', 'cham-soc-da', 'Skincare root', NULL, 1, 1),
+  (2 , 1, 'Sữa rửa mặt', 'sua-rua-mat', NULL, NULL, 1, 1),
+    (3 , 1, 'Toner', 'toner', NULL, NULL, 2, 1),
+    (4 , 1, 'Serum', 'serum', NULL, NULL, 3, 1),
+    (5 , 1, 'Kem dưỡng', 'kem-duong', NULL, NULL, 4, 1),
+    (6 , 1, 'Chống nắng', 'chong-nang', NULL, NULL, 5, 1),
+    (7 , 1, 'Mặt nạ', 'mat-na', NULL, NULL, 6, 1),
+  (8 , NULL, 'Trang điểm', 'trang-diem', 'Makeup root', NULL, 2, 1),
+    (9 , 8, 'Son môi', 'son-moi', NULL, NULL, 1, 1),
+    (10, 8, 'Kem nền', 'kem-nen', NULL, NULL, 2, 1),
+    (11, 8, 'Mascara', 'mascara', NULL, NULL, 3, 1),
+  (12, NULL, 'Chăm sóc tóc', 'cham-soc-toc', 'Haircare root', NULL, 3, 1),
+    (13, 12, 'Dầu gội', 'dau-goi', NULL, NULL, 1, 1),
+    (14, 12, 'Dầu xả', 'dau-xa', NULL, NULL, 2, 1),
+    (15, 12, 'Dưỡng tóc', 'duong-toc', NULL, NULL, 3, 1),
+  (16, NULL, 'Chăm sóc cơ thể', 'cham-soc-co-the', 'Bodycare root', NULL, 4, 1),
+    (17, 16, 'Sữa tắm', 'sua-tam', NULL, NULL, 1, 1),
+    (18, 16, 'Body lotion', 'body-lotion', NULL, NULL, 2, 1),
+  (19, NULL, 'Nước hoa', 'nuoc-hoa', 'Fragrance root', NULL, 5, 1),
+    (20, 19, 'EDT', 'edt', NULL, NULL, 1, 1),
+    (21, 19, 'EDP', 'edp', NULL, NULL, 2, 1);
+
+    INSERT INTO product_variants
+(id, product_id, sku, price, sale_price, stock, options_json, active)
+VALUES
+  -- 3CE Velvet Lip Tint (1006)
+  (2001, 1006, '3CE-VLT-DAF', 220000, 195000, 50,  JSON_OBJECT('Color','Daffodil'), 1),
+  (2002, 1006, '3CE-VLT-NAD', 220000, 195000, 60,  JSON_OBJECT('Color','Near And Dear'), 1),
+  (2003, 1006, '3CE-VLT-TPE', 220000, 195000, 55,  JSON_OBJECT('Color','Taupe'), 1),
+
+  -- Maybelline Fit Me Foundation (1007)
+  (2004, 1007, 'MAY-FIT-120', 199000, 179000, 40,  JSON_OBJECT('Shade','120'), 1),
+  (2005, 1007, 'MAY-FIT-128', 199000, 179000, 38,  JSON_OBJECT('Shade','128'), 1),
+  (2006, 1007, 'MAY-FIT-220', 199000, 179000, 35,  JSON_OBJECT('Shade','220'), 1),
+
+  -- Innisfree My Real Squeeze Mask (1016)
+  (2007, 1016, 'INN-MRSM-GT', 25000, NULL, 200,     JSON_OBJECT('Type','Green Tea'), 1),
+  (2008, 1016, 'INN-MRSM-AL', 25000, NULL, 220,     JSON_OBJECT('Type','Aloe'), 1),
+  (2009, 1016, 'INN-MRSM-RC', 25000, NULL, 210,     JSON_OBJECT('Type','Rice'), 1)
+;
+
+
+INSERT INTO product_images
+(id, product_id, variant_id, url, public_id, alt, sort_order)
+VALUES
+  -- 1001 CeraVe Cleanser
+  (3001, 1001, NULL, 'https://cdn.example.com/products/1001/1.jpg', 'p1001-1', 'CeraVe Cleanser 236ml - A', 0),
+  (3002, 1001, NULL, 'https://cdn.example.com/products/1001/2.jpg', 'p1001-2', 'CeraVe Cleanser 236ml - B', 1),
+
+  -- 1002 Kiehl's Toner
+  (3003, 1002, NULL, 'https://cdn.example.com/products/1002/1.jpg', 'p1002-1', 'Kiehls Calendula Toner', 0),
+
+  -- 1003 Melano CC
+  (3004, 1003, NULL, 'https://cdn.example.com/products/1003/1.jpg', 'p1003-1', 'Melano CC Essence', 0),
+
+  -- 1004 LRP Cicaplast B5
+  (3005, 1004, NULL, 'https://cdn.example.com/products/1004/1.jpg', 'p1004-1', 'LRP Cicaplast B5', 0),
+
+  -- 1005 Anessa
+  (3006, 1005, NULL, 'https://cdn.example.com/products/1005/1.jpg', 'p1005-1', 'Anessa UV Milk', 0),
+
+  -- 1006 3CE Velvet Lip Tint (ảnh theo biến thể)
+  (3007, 1006, 2001, 'https://cdn.example.com/products/1006/v-2001-1.jpg', 'p1006-v2001', '3CE VLT - Daffodil', 0),
+  (3008, 1006, 2002, 'https://cdn.example.com/products/1006/v-2002-1.jpg', 'p1006-v2002', '3CE VLT - Near And Dear', 0),
+  (3009, 1006, 2003, 'https://cdn.example.com/products/1006/v-2003-1.jpg', 'p1006-v2003', '3CE VLT - Taupe', 0),
+
+  -- 1007 Maybelline Fit Me (ảnh theo shade)
+  (3010, 1007, 2004, 'https://cdn.example.com/products/1007/v-2004-1.jpg', 'p1007-v2004', 'FitMe - Shade 120', 0),
+  (3011, 1007, 2005, 'https://cdn.example.com/products/1007/v-2005-1.jpg', 'p1007-v2005', 'FitMe - Shade 128', 0),
+  (3012, 1007, 2006, 'https://cdn.example.com/products/1007/v-2006-1.jpg', 'p1007-v2006', 'FitMe - Shade 220', 0),
+
+  -- 1008 Mascara
+  (3013, 1008, NULL, 'https://cdn.example.com/products/1008/1.jpg', 'p1008-1', 'Loreal Lash Paradise', 0),
+
+  -- 1009 Shampoo
+  (3014, 1009, NULL, 'https://cdn.example.com/products/1009/1.jpg', 'p1009-1', 'Tsubaki Shampoo', 0),
+
+  -- 1010 Conditioner
+  (3015, 1010, NULL, 'https://cdn.example.com/products/1010/1.jpg', 'p1010-1', 'Tsubaki Conditioner', 0),
+
+  -- 1011 Olaplex No.7
+  (3016, 1011, NULL, 'https://cdn.example.com/products/1011/1.jpg', 'p1011-1', 'Olaplex No7', 0),
+
+  -- 1012 LBP Body Wash
+  (3017, 1012, NULL, 'https://cdn.example.com/products/1012/1.jpg', 'p1012-1', 'LBP Body Wash Coconut', 0),
+
+  -- 1013 Nivea Lotion
+  (3018, 1013, NULL, 'https://cdn.example.com/products/1013/1.jpg', 'p1013-1', 'Nivea Q10 Lotion', 0),
+
+  -- 1014 Dior Sauvage
+  (3019, 1014, NULL, 'https://cdn.example.com/products/1014/1.jpg', 'p1014-1', 'Dior Sauvage EDT', 0),
+
+  -- 1015 Gucci Bloom
+  (3020, 1015, NULL, 'https://cdn.example.com/products/1015/1.jpg', 'p1015-1', 'Gucci Bloom EDP', 0),
+
+  -- 1016 Innisfree Mask (ảnh theo loại)
+  (3021, 1016, 2007, 'https://cdn.example.com/products/1016/v-2007-1.jpg', 'p1016-v2007', 'Mask - Green Tea', 0),
+  (3022, 1016, 2008, 'https://cdn.example.com/products/1016/v-2008-1.jpg', 'p1016-v2008', 'Mask - Aloe', 0),
+  (3023, 1016, 2009, 'https://cdn.example.com/products/1016/v-2009-1.jpg', 'p1016-v2009', 'Mask - Rice', 0)
+;
+INSERT INTO product_attributes (id, product_id, name, value) VALUES
+  -- 1001
+  (4001,1001,'Brand','CeraVe'),       (4002,1001,'Dung tích','236ml'), (4003,1001,'Loại da','Dầu/Thường'), (4004,1001,'Xuất xứ','USA'),
+  -- 1002
+  (4005,1002,'Brand','Kiehl''s'),     (4006,1002,'Dung tích','250ml'), (4007,1002,'Không cồn','Có'),       (4008,1002,'Xuất xứ','USA'),
+  -- 1003
+  (4009,1003,'Brand','Rohto'),        (4010,1003,'Hoạt chất','Vitamin C'), (4011,1003,'Dung tích','20ml'), (4012,1003,'Xuất xứ','Japan'),
+  -- 1004
+  (4013,1004,'Brand','La Roche-Posay'), (4014,1004,'Thành phần','B5, Madecassoside'), (4015,1004,'Dung tích','40ml'), (4016,1004,'Xuất xứ','France'),
+  -- 1005
+  (4017,1005,'Brand','Anessa'),       (4018,1005,'SPF','50+ PA++++'),  (4019,1005,'Dung tích','60ml'),     (4020,1005,'Xuất xứ','Japan'),
+  -- 1006
+  (4021,1006,'Brand','3CE'),          (4022,1006,'Finish','Velvet'),   (4023,1006,'Xuất xứ','Korea'),
+  -- 1007
+  (4024,1007,'Brand','Maybelline'),   (4025,1007,'Finish','Matte'),    (4026,1007,'Dung tích','30ml'),     (4027,1007,'Xuất xứ','USA'),
+  -- 1008
+  (4028,1008,'Brand','L''Oréal'),     (4029,1008,'Màu','Đen'),         (4030,1008,'Xuất xứ','France'),
+  -- 1009
+  (4031,1009,'Brand','Tsubaki'),      (4032,1009,'Dung tích','490ml'), (4033,1009,'Xuất xứ','Japan'),
+  -- 1010
+  (4034,1010,'Brand','Tsubaki'),      (4035,1010,'Dung tích','490ml'), (4036,1010,'Xuất xứ','Japan'),
+  -- 1011
+  (4037,1011,'Brand','Olaplex'),      (4038,1011,'Dung tích','30ml'),  (4039,1011,'Xuất xứ','USA'),
+  -- 1012
+  (4040,1012,'Brand','Love Beauty & Planet'), (4041,1012,'Hương','Coconut'), (4042,1012,'Dung tích','400ml'),
+  -- 1013
+  (4043,1013,'Brand','Nivea'),        (4044,1013,'Dung tích','400ml'),
+  -- 1014
+  (4045,1014,'Brand','Dior'),         (4046,1014,'Nồng độ','EDT'),     (4047,1014,'Dung tích','100ml'),
+  -- 1015
+  (4048,1015,'Brand','Gucci'),        (4049,1015,'Nồng độ','EDP'),     (4050,1015,'Dung tích','100ml'),
+  -- 1016
+  (4051,1016,'Brand','Innisfree'),    (4052,1016,'Loại','Sheet mask')
+;
+
+SET FOREIGN_KEY_CHECKS = 1;
