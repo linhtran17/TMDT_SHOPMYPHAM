@@ -1,21 +1,23 @@
-import { Component, OnInit, inject, computed } from '@angular/core';
+import { Component, OnInit, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { ProductService } from '../../../core/services/product.service';
 import { ProductResponse } from '../../../core/models/product.model';
 import { ProductCardComponent, ProductCardData } from '../../components/product-card.component';
 
-type PageResult<T> = { items: T[]; total: number };
+type PageAny<T> = { items?: T[]; content?: T[]; total?: number };
 
 @Component({
   standalone: true,
   selector: 'app-new-products-section',
   imports: [CommonModule, ProductCardComponent],
   styles: [`
-    .wrap{ @apply rounded-2xl border border-slate-200 bg-white p-4 md:p-6; }
-    .title{ @apply text-xl md:text-2xl font-extrabold mb-3; }
-    .gridp{ @apply grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4; }
-    .mt{ @apply mt-2; }
+    .wrap{ border-radius:16px; border:1px solid #e2e8f0; background:#fff; padding:16px; }
+    .title{ font-weight:800; font-size:20px; margin-bottom:12px; }
+    .gridp{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    @media(min-width:768px){ .gridp{ grid-template-columns:repeat(4,1fr);} }
+    @media(min-width:1024px){ .gridp{ grid-template-columns:repeat(6,1fr);} }
+    .mt{ margin-top:8px; color:#64748b; font-size:13px; }
   `],
   template: `
   <section class="wrap">
@@ -27,16 +29,15 @@ type PageResult<T> = { items: T[]; total: number };
         [routerLinkTo]="['/products', c.id]">
       </app-product-card>
     </div>
-    <div class="text-sm text-slate-500 mt" *ngIf="!cards().length">Đang cập nhật…</div>
+    <div class="mt" *ngIf="!cards().length">Đang cập nhật…</div>
   </section>
   `
 })
 export class NewProductsSectionComponent implements OnInit {
   private products = inject(ProductService);
 
-  items: ProductResponse[] = [];
-
-  cards = computed<ProductCardData[]>(() => (this.items || []).map(p => ({
+  private _items = signal<ProductResponse[]>([]);
+  cards = computed<ProductCardData[]>(() => (this._items() || []).map(p => ({
     id: p.id,
     name: p.name,
     price: this.basePrice(p),
@@ -47,27 +48,29 @@ export class NewProductsSectionComponent implements OnInit {
   })));
 
   ngOnInit(): void {
-    // lấy 12 sản phẩm mới (dựa vào mặc định BE, hoặc bạn có thể thêm tham số sort ở service nếu có)
     this.products.search({ page: 0, size: 12 } as any).subscribe({
-      next: (pg: PageResult<ProductResponse>) => this.items = pg.items || [],
-      error: () => this.items = []
+      next: (pg: PageAny<ProductResponse>) => {
+        const rows = pg?.items ?? pg?.content ?? [];
+        this._items.set(rows);
+      },
+      error: () => this._items.set([])
     });
   }
 
   private basePrice(p: ProductResponse){
     if (p.hasVariants && p.variants?.length){
-      const prices = p.variants.filter(v=>v.active!==false).map(v=>v.price ?? 0);
+      const prices = p.variants.filter(v=>v.active!==false).map(v=>Number(v.price ?? 0));
       return prices.length ? Math.min(...prices) : 0;
     }
-    return p.price ?? 0;
+    return Number(p.price ?? 0);
   }
   private salePrice(p: ProductResponse){
     if (p.hasVariants) return null;
-    if (p.salePrice!=null && p.price!=null && p.salePrice < p.price) return p.salePrice;
+    if (p.salePrice!=null && p.price!=null && Number(p.salePrice) < Number(p.price)) return Number(p.salePrice);
     return null;
   }
   private stock(p: ProductResponse){
-    if (p.hasVariants && p.variants?.length) return p.variants.reduce((s,v)=>s+(v.stock||0),0);
-    return p.stock ?? 0;
+    if (p.hasVariants && p.variants?.length) return p.variants.reduce((s,v)=>s+(Number(v.stock)||0),0);
+    return Number(p.stock ?? 0);
   }
 }

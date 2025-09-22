@@ -1,7 +1,6 @@
 // src/app/shared/components/header/header.component.ts
 import {
-  Component, inject, signal, computed,
-  HostListener, AfterViewInit
+  Component, inject, signal, computed, HostListener
 } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIf, NgFor, NgClass } from '@angular/common';
@@ -22,27 +21,23 @@ import { Category } from '../../../core/models/category.model';
     header{ @apply sticky top-0 z-50 bg-white/90 backdrop-blur border-b; transform:translateZ(0); }
     header .row{ @apply container px-3; transition: padding .2s ease; }
 
-    /* ===== PROMO (để tông hiện tại) ===== */
+    /* ===== PROMO ===== */
     .promo{ @apply bg-rose-500 text-white; }
     .promo .inner{ @apply container px-3 py-1.5 text-[13px] flex items-center gap-4; }
-    header.is-compact .promo{ display:none; }
 
     /* ===== HÀNG GIỮA: LOGO + SEARCH + ACTIONS ===== */
     .mid{ @apply py-2 flex items-center gap-2 justify-between flex-nowrap; }
-    header.is-compact .mid{ @apply py-2; }
 
     .search{ @apply relative flex items-center; }
     .search .box{ @apply flex items-center rounded-full border border-slate-200 bg-white pl-3 pr-2 h-10 w-full shadow-sm; }
     .search input{ @apply flex-1 bg-transparent outline-none text-[14px] text-slate-700 placeholder-transparent; }
     .search .btn{ @apply ml-2 inline-flex items-center justify-center w-10 h-8 rounded-full bg-rose-600 text-white hover:bg-rose-700; }
-    /* marquee trong search */
     .marquee{ @apply absolute left-3 right-12 text-[13px] text-slate-500 pointer-events-none whitespace-nowrap overflow-hidden; line-height:1; }
     .marquee>span{ display:inline-block; padding-left:100%; animation:marquee 10s linear infinite; }
     @keyframes marquee{ 0%{transform:translateX(0)} 100%{transform:translateX(-100%)} }
-    /* search co giãn để luôn 1 hàng */
     .search-fluid{ width: clamp(220px, 30vw, 420px); }
 
-    /* ===== ACTION CHIPS (giữ 1 hàng) ===== */
+    /* ===== ACTION CHIPS ===== */
     .acts{ @apply flex items-center gap-1 shrink-0; }
     .act{ @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 transition; }
     .act:hover{ box-shadow:0 6px 18px rgba(0,0,0,.06); transform:translateY(-1px); }
@@ -54,7 +49,7 @@ import { Category } from '../../../core/models/category.model';
       @apply absolute -top-1 -right-1 min-w-[18px] h-[18px] text-[11px] font-semibold rounded-full bg-rose-600 text-white px-1.5 flex items-center justify-center;
     }
 
-    /* ===== ACCOUNT DROPDOWN (đặt ngay dưới nút) ===== */
+    /* ===== ACCOUNT DROPDOWN ===== */
     .acct-wrap{ @apply relative; }
     .trigger{ @apply select-none; }
     .dropdown{
@@ -73,48 +68,45 @@ import { Category } from '../../../core/models/category.model';
     .menu-item svg{ @apply w-4 h-4; }
     .separator{ @apply h-px bg-rose-100 mx-3 my-1; }
 
-    /* ===== THANH MENU HỒNG NHẠT (row 2) ===== */
+    /* ===== THANH MENU HỒNG NHẠT (row 2) – làm nhẹ hơn ===== */
     .pinkbar{
-      background: linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%);
-      border-top: 1px solid #ffd1dc; border-bottom: 1px solid #ffd1dc;
-      color: #9f1239; /* rose-900 */
+      background: linear-gradient(180deg, #fff8fb 0%, #ffeef3 100%);
+      border-top: 1px solid #ffe7ef;
+      border-bottom: 1px solid #ffe7ef;
+      color: #9f1239;
     }
     .pinkbar .nav{ @apply container px-3 flex items-center gap-2 overflow-x-auto; }
     .nav-item{ @apply whitespace-nowrap px-3 py-3 text-[15px] font-semibold leading-none flex items-center gap-1 rounded-lg; }
     .nav-item{ background: transparent; }
-    .nav-item:hover{ background: rgba(244,63,94,.10); } /* hover hồng nhạt */
+    .nav-item:hover{ background: rgba(244,63,94,.06); }
     .nav-item .chev{ @apply inline-block w-4 h-4; }
-    header.is-compact .pinkbar{ display:none; }
 
-    /* Danh mục đỏ (nút chính) */
+    /* Nút Danh mục dịu hơn */
     .nav-item--cat{
-      @apply bg-rose-600 text-white;
-      box-shadow: 0 6px 18px rgba(244,63,94,.18);
+      background:#fb7185; /* ~rose-400/500 */
+      color:#fff;
+      box-shadow: 0 6px 18px rgba(244,63,94,.15);
     }
-    .nav-item--cat:hover{ background: rgba(225,29,72,.92); } /* rose-700 ~ */
+    .nav-item--cat:hover{ background:#f15f74; }
     .nav-item--cat .chev path{ stroke:#fff; }
 
-    /* "HOT" pill cho Flash sale */
     .hot-pill{ @apply ml-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-black bg-rose-600 text-white; }
 
     /* ===== MEGA 2-PANE ===== */
     .menu{ @apply absolute left-0 top-full mt-2 w-[min(1100px,calc(100vw-32px))] bg-white rounded-2xl shadow-2xl border border-rose-100 overflow-hidden z-[85]; }
     .menu-scroll{ @apply max-h-[70vh] overflow-auto; }
     .menu-left{ @apply w-64 bg-white border-r border-rose-100 py-2; }
-    .menu-item-left{
-      @apply px-3 py-2 flex items-center justify-between rounded-lg cursor-pointer;
-    }
-    .menu-item-left:hover{ background:#fff1f2; } /* rose-50 */
+    .menu-item-left{ @apply px-3 py-2 flex items-center justify-between rounded-lg cursor-pointer; }
+    .menu-item-left:hover{ background:#fff1f2; }
     .menu-item-left.is-active{
-      background:#ffe4e6; /* rose-100 */
-      border-left: 3px solid #e11d48; /* rose-600 */
+      background:#ffe7eb;
+      border-left: 3px solid #e11d48;
     }
     .menu-right{ @apply flex-1 p-4 grid grid-cols-2 lg:grid-cols-3 gap-4; }
     .link-chip{ @apply inline-block px-2 py-1 rounded-md text-[13px] text-slate-700 hover:text-rose-600 hover:bg-rose-50; }
   `],
   template: `
-<header [class.is-compact]="compact()">
-
+<header>
   <!-- PROMO -->
   <div class="promo">
     <div class="inner">
@@ -131,10 +123,7 @@ import { Category } from '../../../core/models/category.model';
       <span class="hidden lg:inline text-lg font-extrabold text-rose-600">L’Éclat</span>
     </a>
 
-    <button class="btn-cat-sm" *ngIf="compact()" (click)="open.set(true)">
-      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-      Danh mục
-    </button>
+    <!-- (đã bỏ nút Danh mục khi compact) -->
 
     <form (ngSubmit)="onSearch()" class="mx-2">
       <div class="search search-fluid">
@@ -202,13 +191,13 @@ import { Category } from '../../../core/models/category.model';
     </div>
   </div>
 
-  <!-- ROW 2: MENU HỒNG NHẠT -->
+  <!-- ROW 2: MENU HỒNG NHẠT (giữ nguyên khi kéo trang) -->
   <div class="pinkbar">
     <nav class="nav">
       <a routerLink="/" routerLinkActive="bg-white/10" [routerLinkActiveOptions]="{exact:true}" class="nav-item">Trang chủ</a>
 
-      <!-- Danh mục: nút đỏ -->
-      <div class="relative" (mouseenter)="open.set(true)" (mouseleave)="closeAll()" *ngIf="!compact()">
+      <!-- Danh mục: mega-menu 2 pane -->
+      <div class="relative" (mouseenter)="open.set(true)" (mouseleave)="closeAll()">
         <button class="nav-item nav-item--cat" aria-haspopup="menu" [attr.aria-expanded]="open() ? 'true' : 'false'">
           Danh mục
           <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none"/></svg>
@@ -247,41 +236,20 @@ import { Category } from '../../../core/models/category.model';
         </div>
       </div>
 
-      <!-- Flash sale -->
+      <!-- Các mục còn lại giữ nguyên -->
       <a routerLink="/flash" routerLinkActive="bg-white/10" class="nav-item">
         Flash sale <span class="hot-pill">HOT</span>
       </a>
-
       <a routerLink="/news" routerLinkActive="bg-white/10" class="nav-item">Tin tức</a>
       <a routerLink="/about" routerLinkActive="bg-white/10" class="nav-item">Giới thiệu</a>
       <a routerLink="/contact" routerLinkActive="bg-white/10" class="nav-item">Liên hệ</a>
       <a routerLink="/orders" routerLinkActive="bg-white/10" class="nav-item">Tra cứu đơn hàng</a>
     </nav>
   </div>
-
-  <!-- OVERLAY + MENU COMPACT -->
-  <div class="overlay" *ngIf="compact() && open()" (click)="closeAll()"></div>
-  <div class="menu-compact" *ngIf="compact() && open() && parents().length">
-    <div class="panel">
-      <div class="card" (click)="$event.stopPropagation()">
-        <div class="grid-wrap">
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div *ngFor="let p of parents()">
-              <h4>{{ p.name }}</h4>
-              <div class="flex flex-wrap gap-1.5">
-                <a class="chip" [routerLink]="'/products'" [queryParams]="{cat: p.slug || p.id}" (click)="closeAll()">Tất cả {{ p.name }}</a>
-                <a *ngFor="let c of (p.children || [])" class="chip" [routerLink]="'/products'" [queryParams]="{cat: c.slug || c.id}" (click)="closeAll()">{{ c.name }}</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </header>
   `
 })
-export class HeaderComponent implements AfterViewInit {
+export class HeaderComponent {
   private router = inject(Router);
   private auth = inject(AuthService);
   private catApi = inject(CategoryService);
@@ -292,7 +260,6 @@ export class HeaderComponent implements AfterViewInit {
   open = signal(false);
   acctOpen = signal(false);
   hoverId = signal<number | null>(null);
-  compact = signal(false);
   cartCount = signal(0);
 
   // marquee
@@ -311,6 +278,7 @@ export class HeaderComponent implements AfterViewInit {
     if (this.auth.token && !this.auth.userSnapshot()) {
       this.auth.fetchMe().pipe(takeUntilDestroyed()).subscribe({ error: () => this.auth.logout(false) });
     }
+
     this.catApi.listTree().pipe(takeUntilDestroyed()).subscribe({
       next: list => {
         this.categories.set(list || []);
@@ -321,12 +289,9 @@ export class HeaderComponent implements AfterViewInit {
     });
 
     this.updateCartCount();
-window.addEventListener('storage', (e) => { if (e.key === 'cart') this.updateCartCount(); });
-window.addEventListener('cart:updated', () => this.updateCartCount());
+    window.addEventListener('storage', (e) => { if (e.key === 'cart') this.updateCartCount(); });
+    window.addEventListener('cart:updated', () => this.updateCartCount());
   }
-
-  ngAfterViewInit(){ this.compact.set(window.scrollY > 80); }
-  @HostListener('window:scroll') onScroll(){ this.compact.set(window.scrollY > 80); }
 
   /* Đóng dropdown khi click ra ngoài */
   @HostListener('document:click', ['$event'])
@@ -337,19 +302,18 @@ window.addEventListener('cart:updated', () => this.updateCartCount());
   @HostListener('document:keydown.escape') onEsc(){ this.closeAll(); }
 
   private updateCartCount(){
-  try{
-    const raw = localStorage.getItem('cart');
-    const obj = raw ? JSON.parse(raw) : null;
-    let total = 0;
-    if (obj && typeof obj.count === 'number') {
-      total = obj.count;
-    } else if (Array.isArray(obj)) {
-      total = obj.reduce((s:number,it:any)=> s + Number(it?.qty || 1), 0);
-    }
-    this.cartCount.set(total);
-  }catch{ this.cartCount.set(0); }
-}
-
+    try{
+      const raw = localStorage.getItem('cart');
+      const obj = raw ? JSON.parse(raw) : null;
+      let total = 0;
+      if (obj && typeof obj.count === 'number') {
+        total = obj.count;
+      } else if (Array.isArray(obj)) {
+        total = obj.reduce((s:number,it:any)=> s + Number(it?.qty || 1), 0);
+      }
+      this.cartCount.set(total);
+    }catch{ this.cartCount.set(0); }
+  }
 
   closeAll(){ this.open.set(false); this.acctOpen.set(false); }
   onSearch(){ const q=(this.q||'').trim(); this.router.navigate(['/products'],{ queryParams:{ q, page:1 }}); this.closeAll(); }

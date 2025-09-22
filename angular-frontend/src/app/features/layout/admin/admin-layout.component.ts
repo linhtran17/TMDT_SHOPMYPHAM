@@ -93,6 +93,14 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v6l-4-2-4 2-4-2-4 2zM4 20h16"/></svg>
           Banner
         </a>
+        <a routerLink="/admin/flash-sales" routerLinkActive="active" class="item group">
+  <!-- icon đơn giản, bạn muốn thay icon khác cũng ok -->
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z"/>
+  </svg>
+  Flash sale
+</a>
+
 
         <a routerLink="/admin/news" routerLinkActive="active" class="item group">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h6"/></svg>

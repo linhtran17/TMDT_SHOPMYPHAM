@@ -23,7 +23,7 @@ public class AdminOrderController {
   private final InventoryMovementRepository invRepo;
 
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:read')")
-@GetMapping
+  @GetMapping
   public ApiResponse<Page<Order>> list(
       @RequestParam(required = false) String q,
       @RequestParam(required = false) String status,
@@ -41,7 +41,7 @@ public class AdminOrderController {
   }
 
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:update')")
-@PatchMapping("/{id}/status")
+  @PatchMapping("/{id}/status")
   public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestParam String toStatus){
     var od = orderRepo.findById(id).orElseThrow(() -> new NotFoundException("Order không tồn tại"));
     var from = od.getStatus();

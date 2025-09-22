@@ -1,11 +1,18 @@
 package com.shopmypham.modules.auth.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.Set;
 
-public record CurrentUserDto(
-    Long id,
-    String fullName,
-    String email,
-    Set<String> roles,
-    Set<String> authorities
-) {}
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CurrentUserDto {
+  private Long id;
+  private String fullName;
+  private String email;
+  private Set<String> roles;
+  private Set<String> authorities;
+}

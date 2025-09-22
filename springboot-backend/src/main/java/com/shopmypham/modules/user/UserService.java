@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/modules/user/UserService.java
 package com.shopmypham.modules.user;
 
 import com.shopmypham.core.exception.BadRequestException;
@@ -25,27 +24,14 @@ public class UserService {
   public Page<User> page(String q, Boolean enabled, int page, int size) {
     var pageable = PageRequest.of(Math.max(0,page), Math.max(1,size),
         Sort.by(Sort.Direction.DESC,"createdAt"));
-
-    // 👉 dùng findAllBy(pageable) để eager-load roles
-    var all = repo.findAllBy(pageable);
-
-    // lọc nhẹ trong memory cho đơn giản
-    var filtered = all.getContent().stream()
-        .filter(u -> q==null || q.isBlank()
-            || u.getEmail().toLowerCase().contains(q.toLowerCase())
-            || (u.getFullName()!=null && u.getFullName().toLowerCase().contains(q.toLowerCase())))
-        .filter(u -> enabled==null || enabled.equals(u.getEnabled()))
-        .toList();
-
-    return new PageImpl<>(filtered, pageable, all.getTotalElements());
+    return repo.search(q, enabled, pageable);
   }
- @Transactional(readOnly = true)
-public User get(Long id){
-  // nạp sẵn roles + permissions
-  return repo.findWithRolesAndPermsById(id)
-      .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
-}
 
+  @Transactional(readOnly = true)
+  public User get(Long id){
+    return repo.findWithRolesAndPermsById(id)
+        .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
+  }
 
   @Transactional
   public Long create(String fullName, String email, String rawPassword,

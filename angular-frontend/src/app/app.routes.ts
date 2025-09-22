@@ -14,6 +14,7 @@ export const routes: Routes = [
     component: PublicLayoutComponent,
     children: [
       { path: '', component: HomePageComponent },
+      { path: 'oauth2/callback', loadComponent: () => import('./features/auth/oauth2-callback.component').then(m => m.Oauth2CallbackComponent) },
 
       //  Flash sale
       { path: 'flash', loadComponent: () => import('./features/flash/flash-deals-all.page').then(m => m.FlashDealsAllPage) },
@@ -72,6 +73,11 @@ export const routes: Routes = [
       // Giữ link cũ
       { path: 'inventory/new', pathMatch: 'full', redirectTo: 'inventory/receive' },
       { path: 'orders', loadComponent: () => import('./features/admin/orders/admin-orders-list.page').then(m => m.AdminOrdersListPageComponent) },
+
+
+      { path: 'flash-sales', loadComponent: () => import('./features/admin/flash/admin-flash-sales-list.page').then(m => m.default) },
+{ path: 'flash-sales/new', loadComponent: () => import('./features/admin/flash/admin-flash-sale-form.page').then(m => m.default) },
+{ path: 'flash-sales/:id/edit', loadComponent: () => import('./features/admin/flash/admin-flash-sale-form.page').then(m => m.default) },
 
     ],
   },

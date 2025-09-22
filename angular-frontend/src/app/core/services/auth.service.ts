@@ -2,11 +2,12 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 export interface SimpleUser {
   id: number;
   name?: string;
-  fullName?: string | null; // <- thêm để template dùng u.fullName
+  fullName?: string | null;
   email: string;
   roles: string[];
 }
@@ -15,15 +16,17 @@ export interface SimpleUser {
 export class AuthService {
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY  = 'auth_user';
-  private base = '/api';
+
+  /** Mọi REST API vẫn đi qua /api (đã có proxy/interceptor) */
+  private api = '/api';
 
   private _user$ = new BehaviorSubject<SimpleUser | null>(this.readUser());
   public  user$ = this._user$.asObservable();
-
   userSig = signal<SimpleUser | null>(this._user$.value);
 
   constructor(private http: HttpClient) {}
 
+  // ===== token + user cache =====
   get token(): string | null { return this.getToken(); }
   userSnapshot(): SimpleUser | null { return this._user$.getValue(); }
   currentUser(): SimpleUser | null { return this._user$.getValue(); }
@@ -44,13 +47,14 @@ export class AuthService {
     catch { return null; }
   }
 
+  // ===== Username/Password login =====
   login(payload: { email: string; password: string }): Observable<any>;
   login(email: string, password: string): Observable<any>;
   login(arg1: any, arg2?: any): Observable<any> {
     const email = typeof arg1 === 'string' ? arg1 : arg1?.email;
     const password = typeof arg2 === 'string' ? arg2 : arg1?.password;
 
-    return this.http.post<any>(`${this.base}/auth/login`, { email, password }).pipe(
+    return this.http.post<any>(`${this.api}/auth/login`, { email, password }).pipe(
       map(res => res?.data ?? res),
       tap((data: any) => {
         if (data?.token) this.setToken(data.token);
@@ -73,13 +77,13 @@ export class AuthService {
       email: payload.email,
       password: payload.password
     };
-    return this.http.post<any>(`${this.base}/auth/register`, body).pipe(
+    return this.http.post<any>(`${this.api}/auth/register`, body).pipe(
       map(res => res?.data ?? res)
     );
   }
 
   me(): Observable<SimpleUser> {
-    return this.http.get<any>(`${this.base}/auth/me`).pipe(
+    return this.http.get<any>(`${this.api}/auth/me`).pipe(
       map(res => res?.data ?? res),
       tap(u => this.setCurrentUser(u))
     );
@@ -92,5 +96,13 @@ export class AuthService {
 
   hasRole(role: string): boolean {
     return !!this._user$.value?.roles?.includes(role);
+  }
+
+  // ===== Google OAuth2 =====
+  /** Điều hướng browser sang BE để bắt đầu login Google */
+  googleLogin(): void {
+    const base = environment.apiBase || 'http://localhost:8080';
+    // Path mặc định của Spring Security
+    window.location.href = `${base}/oauth2/authorization/google`;
   }
 }

@@ -42,14 +42,12 @@ export class ProductService {
   }
 
   create(body: ProductRequest): Observable<number> {
-    // KHÔNG gửi stock
     const payload = { ...body };
     delete (payload as any).stock;
     return this.api.post<any>('/api/products', payload).pipe(map(r => r?.data ?? r));
   }
 
   update(id: number, body: ProductRequest): Observable<void> {
-    // KHÔNG gửi stock
     const payload = { ...body };
     delete (payload as any).stock;
     return this.api.put<void>(`/api/products/${id}`, payload);
@@ -94,22 +92,20 @@ export class ProductService {
   upsertAttributes(productId: number, attrs: ProductAttribute[]) {
     return this.api.put<void>(`/api/products/${productId}/attributes`, attrs);
   }
- 
 
-searchLite(q: string): Observable<{id:number; name:string; hasVariants:boolean}[]> {
-  const params: any = { q, page: 0, size: 10 };
-  // dùng endpoint list sản phẩm hiện có của bạn
-  return this.api.get<any>('/api/products', params).pipe(
-    map((r: any) => {
-      const data = r?.data ?? r;
-      const items = data?.items ?? data?.content ?? [];
-      return (items as any[]).map(p => ({
-        id: p.id,
-        name: p.name,
-        hasVariants: !!p.hasVariants
-      }));
-    })
-  );
-}
-
+  // ✅ Đặt bên trong class & map shape đồng nhất
+  searchLite(q: string): Observable<{id:number; name:string; hasVariants:boolean}[]> {
+    const params: any = { q, page: 0, size: 10 };
+    return this.api.get<any>('/api/products', params).pipe(
+      map((r: any) => {
+        const data = r?.data ?? r;
+        const items = data?.items ?? data?.content ?? [];
+        return (items as any[]).map(p => ({
+          id: p.id,
+          name: p.name,
+          hasVariants: !!p.hasVariants
+        }));
+      })
+    );
+  }
 }

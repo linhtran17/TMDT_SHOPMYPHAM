@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopmypham.core.exception.BadRequestException;
 import com.shopmypham.core.exception.NotFoundException;
 import com.shopmypham.modules.cart.*;
-import com.shopmypham.modules.cart.dto.CartView;
 import com.shopmypham.modules.inventory.*;
 import com.shopmypham.modules.order.dto.*;
 import com.shopmypham.modules.product.*;
@@ -39,26 +38,21 @@ public class OrderService {
     return "OD" + DateTimeFormatter.ofPattern("yyMMdd").format(java.time.LocalDate.now()) + "-" + id;
   }
 
-  private Map<String,String> readJson(String json){
-    try { return json==null? null : om.readValue(json, new TypeReference<Map<String,String>>(){}); }
-    catch (Exception e){ return null; }
-  }
-
   @Transactional
   public CheckoutResponse checkout(Long userId, CheckoutRequest req){
     // 1) load cart
-  var cart = cartRepo.findByUserId(userId).orElseThrow(() -> new BadRequestException("Giỏ hàng trống"));
-var all = itemRepo.findByCartIdOrderByIdAsc(cart.getId());
-if (all.isEmpty()) throw new BadRequestException("Giỏ hàng trống");
+    var cart = cartRepo.findByUserId(userId).orElseThrow(() -> new BadRequestException("Giỏ hàng trống"));
+    var all = itemRepo.findByCartIdOrderByIdAsc(cart.getId());
+    if (all.isEmpty()) throw new BadRequestException("Giỏ hàng trống");
 
-List<CartItem> items;
-if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
-  var idSet = new java.util.HashSet<>(req.getItemIds());
-  items = all.stream().filter(it -> idSet.contains(it.getId())).toList();
-  if (items.isEmpty()) throw new BadRequestException("Không có dòng nào được chọn");
-} else {
-  items = all; // backward-compatible: không gửi thì checkout toàn giỏ
-}
+    List<CartItem> items;
+    if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
+      var idSet = new java.util.HashSet<>(req.getItemIds());
+      items = all.stream().filter(it -> idSet.contains(it.getId())).toList();
+      if (items.isEmpty()) throw new BadRequestException("Không có dòng nào được chọn");
+    } else {
+      items = all; // checkout toàn giỏ
+    }
 
     // 2) re-pricing + validate tồn
     BigDecimal subtotal = BigDecimal.ZERO;
@@ -77,7 +71,7 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
         sku = v.getSku();
         int avail = Optional.ofNullable(invRepo.variantQty(v.getId())).orElse(0);
         if (avail < it.getQuantity()) throw new BadRequestException("Hết hàng hoặc không đủ tồn cho SKU " + sku);
-      }else{
+      } else {
         unit = (p.getSalePrice()!=null ? p.getSalePrice() : p.getPrice());
         sku = p.getSku();
         int avail = Optional.ofNullable(invRepo.productQty(p.getId())).orElse(0);
@@ -99,15 +93,15 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
       orderLines.add(oi);
     }
 
-    // 3) coupon / shipping / tax (demo)
-    BigDecimal discount = BigDecimal.ZERO; // TODO coupon
+    // 3) phí/thuế/khuyến mãi (demo)
+    BigDecimal discount = BigDecimal.ZERO; // TODO: coupon
     BigDecimal shipping = subtotal.compareTo(new BigDecimal("300000")) >= 0 ? BigDecimal.ZERO : new BigDecimal("30000");
     BigDecimal tax = BigDecimal.ZERO;
     BigDecimal total = subtotal.add(shipping).subtract(discount).add(tax);
 
-    // 4) create order: dùng mã tạm unique, rồi update
+    // 4) tạo order (mã tạm → mã chính thức)
     var od = new Order();
-    od.setOrderCode("TMP-" + java.util.UUID.randomUUID()); // ✅ unique tạm
+    od.setOrderCode("TMP-" + java.util.UUID.randomUUID()); // unique tạm
     od.setUserId(userId);
     od.setStatus(OrderStatus.pending);
     od.setPaymentStatus(PaymentStatus.pending);
@@ -129,15 +123,15 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
     od.setShippingAddress2(req.getShippingAddress2());
     od.setNote(req.getNote());
 
-    orderRepo.save(od); // để có id
-    od.setOrderCode(genOrderCode(od.getId())); // ODyyMMdd-<id>
-    orderRepo.save(od); // update mã chính thức
+    orderRepo.save(od);                 // có id
+    od.setOrderCode(genOrderCode(od.getId()));
+    orderRepo.save(od);                 // update mã chính thức
 
-    // 5) persist order items
+    // 5) lưu items
     for (var oi : orderLines){ oi.setOrderId(od.getId()); }
     orderItemRepo.saveAll(orderLines);
 
-    // 6) Ghi sổ kho: xuất luôn
+    // 6) ghi sổ kho
     for (var oi : orderLines){
       var m = new InventoryMovement();
       m.setProductId(oi.getProductId());
@@ -148,10 +142,10 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
       invRepo.save(m);
     }
 
-    // 7) clear cart
+    // 7) dọn cart
     itemRepo.deleteAll(items);
 
-    // 8) status history
+    // 8) history
     var his = new OrderStatusHistory();
     his.setOrderId(od.getId());
     his.setFromStatus(null);
@@ -159,7 +153,6 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
     his.setNote("Order created");
     statusHisRepo.save(his);
 
-    // response
     var res = new CheckoutResponse();
     res.setOrderId(od.getId());
     res.setOrderCode(od.getOrderCode());
@@ -167,11 +160,56 @@ if (req.getItemIds()!=null && !req.getItemIds().isEmpty()){
     return res;
   }
 
+  /** Map entity -> DTO */
+  public OrderDto toDto(Order o, boolean includeItems) {
+    var dto = new OrderDto();
+    dto.setId(o.getId());
+    dto.setOrderCode(o.getOrderCode());
+    dto.setUserId(o.getUserId());
+    dto.setStatus(o.getStatus());
+    dto.setPaymentStatus(o.getPaymentStatus());
+    dto.setPaymentMethod(o.getPaymentMethod());
+    dto.setSubtotalAmount(o.getSubtotalAmount());
+    dto.setDiscountAmount(o.getDiscountAmount());
+    dto.setShippingFee(o.getShippingFee());
+    dto.setTaxAmount(o.getTaxAmount());
+    dto.setTotalAmount(o.getTotalAmount());
+    dto.setCustomerName(o.getCustomerName());
+    dto.setCustomerEmail(o.getCustomerEmail());
+    dto.setCustomerPhone(o.getCustomerPhone());
+    dto.setShippingProvince(o.getShippingProvince());
+    dto.setShippingDistrict(o.getShippingDistrict());
+    dto.setShippingWard(o.getShippingWard());
+    dto.setShippingAddress1(o.getShippingAddress1());
+    dto.setShippingAddress2(o.getShippingAddress2());
+    dto.setNote(o.getNote());
+    dto.setCreatedAt(o.getCreatedAt());
+
+    if (includeItems && o.getItems()!=null) {
+      var items = new ArrayList<OrderItemDto>();
+      for (var it : o.getItems()) {
+        var i = new OrderItemDto();
+        i.setId(it.getId());
+        i.setProductId(it.getProductId());
+        i.setVariantId(it.getVariantId());
+        i.setProductSku(it.getProductSku());
+        i.setProductName(it.getProductName());
+        i.setOptionsSnapshot(it.getOptionsSnapshot());
+        i.setUnitPrice(it.getUnitPrice());
+        i.setQuantity(it.getQuantity());
+        i.setLineTotal(it.getLineTotal());
+        items.add(i);
+      }
+      dto.setItems(items);
+    }
+    return dto;
+  }
+
   @Transactional(readOnly = true)
-  public Order get(Long id){
+  public OrderDto get(Long id){
     var o = orderRepo.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy đơn"));
     var items = orderItemRepo.findByOrderIdOrderByIdAsc(id);
-    o.setItems(items); // trả về items kèm đơn
-    return o;
+    o.setItems(items); // attach items để map
+    return toDto(o, true);
   }
 }

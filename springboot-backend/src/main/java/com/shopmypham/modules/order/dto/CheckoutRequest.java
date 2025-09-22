@@ -1,7 +1,9 @@
 package com.shopmypham.modules.order.dto;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class CheckoutRequest {
@@ -17,8 +19,8 @@ public class CheckoutRequest {
 
   private String note;
   private String couponCode;      // optional
-  private String paymentMethod;   // "COD" (demo)
+  private String paymentMethod;   // mặc định "COD" nếu null/blank
 
-  // ✅ NEW: cho phép chọn item cụ thể trong cart để checkout
-  private java.util.List<Long> itemIds;
+  // Cho phép chọn item cụ thể trong cart để checkout
+  private List<Long> itemIds;
 }

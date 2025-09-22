@@ -16,7 +16,14 @@ import java.util.stream.Collectors;
 public class RoleService {
   private final RoleRepository roleRepo;
   private final PermissionRepository permRepo;
-  private final com.shopmypham.modules.user.UserRepository userRepo; // đổi package nếu khác
+  private final com.shopmypham.modules.user.UserRepository userRepo;
+
+  private String normalizeRoleName(String n){
+    n = (n == null ? "" : n.trim());
+    if (n.isEmpty()) throw new BadRequestException("Tên vai trò không được trống");
+    n = n.toUpperCase();
+    return n.startsWith("ROLE_") ? n : ("ROLE_" + n);
+  }
 
   @Transactional(readOnly = true)
   public List<RoleDto> list() {
@@ -32,13 +39,12 @@ public class RoleService {
 
   @Transactional
   public Long create(RoleUpsertRequest req) {
-    String name = req.name().trim();
-    if (name.isBlank()) throw new BadRequestException("Tên vai trò không được trống");
+    String name = normalizeRoleName(req.getName());
     roleRepo.findByName(name).ifPresent(x -> { throw new BadRequestException("Tên vai trò đã tồn tại"); });
 
     var role = new Role();
     role.setName(name);
-    role.setPermissions(resolvePermissions(req.permissions()));
+    role.setPermissions(resolvePermissions(req.getPermissions()));
     return roleRepo.save(role).getId();
   }
 
@@ -46,15 +52,13 @@ public class RoleService {
   public void update(Long id, RoleUpsertRequest req) {
     var role = roleRepo.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy vai trò"));
 
-    String name = req.name().trim();
-    if (name.isBlank()) throw new BadRequestException("Tên vai trò không được trống");
-
+    String name = normalizeRoleName(req.getName());
     roleRepo.findByName(name).ifPresent(exist -> {
       if (!exist.getId().equals(id)) throw new BadRequestException("Tên vai trò đã tồn tại");
     });
 
     role.setName(name);
-    role.setPermissions(resolvePermissions(req.permissions()));
+    role.setPermissions(resolvePermissions(req.getPermissions()));
   }
 
   @Transactional

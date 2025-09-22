@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/modules/user/UserController.java
 package com.shopmypham.modules.user;
 
 import com.shopmypham.core.api.ApiResponse;
@@ -11,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -19,7 +19,6 @@ import java.util.Set;
 public class UserController {
   private final UserService service;
 
-  // ===== DTO gói gọn trong Controller =====
   @Data static class CreateReq {
     private String fullName;
     private String email;
@@ -28,17 +27,17 @@ public class UserController {
     private String address;
     private String avatarUrl;
     private Boolean enabled;
-    private Set<Long> roleIds; // optional
+    private Set<Long> roleIds;
   }
   @Data static class UpdateReq {
     private String fullName;
     private String email;
-    private String password;   // nếu gửi thì đổi mật khẩu
+    private String password;
     private String phone;
     private String address;
     private String avatarUrl;
     private Boolean enabled;
-    private Set<Long> roleIds; // optional
+    private Set<Long> roleIds;
   }
   @Data static class UserRes {
     private Long id;
@@ -67,7 +66,6 @@ public class UserController {
     return r;
   }
 
-  // ===== Endpoints =====
   @GetMapping
   @PreAuthorize("hasAuthority('user:read') or hasRole('ADMIN')")
   public ApiResponse<Page<UserRes>> page(
@@ -102,9 +100,11 @@ public class UserController {
     return ApiResponse.ok();
   }
 
+  // ✅ PATCH nhận body JSON { "enabled": true }
   @PatchMapping("/{id}/enabled")
   @PreAuthorize("hasAuthority('user:update') or hasRole('ADMIN')")
-  public ApiResponse<Void> toggle(@PathVariable Long id, @RequestParam boolean value){
+  public ApiResponse<Void> toggle(@PathVariable Long id, @RequestBody Map<String, Object> body){
+    boolean value = Boolean.TRUE.equals(body.get("enabled"));
     service.toggleEnable(id, value);
     return ApiResponse.ok();
   }

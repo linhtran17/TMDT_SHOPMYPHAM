@@ -24,7 +24,12 @@ type PageResult<T> = { items: T[]; total: number };
   `],
   template: `
   <div class="wrap">
-    <h1 class="text-2xl font-extrabold mb-4">Sản phẩm</h1>
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-slate-500 mb-3">
+      <a routerLink="/" class="hover:underline">Trang chủ</a>
+      <span class="mx-1">›</span>
+      <span class="text-slate-800 font-semibold">Sản phẩm</span>
+    </nav>
 
     <div class="card">
       <div class="toolbar">
@@ -113,20 +118,19 @@ export class ProductsListPageComponent implements OnInit {
   // helpers to compute display values
   private pickDisplayBasePrice(p: ProductResponse){
     if (p.hasVariants && p.variants?.length){
-      const prices = p.variants.filter(v=>v.active!==false).map(v=>v.price ?? 0);
+      const prices = p.variants.filter(v=>v.active!==false).map(v=>Number(v.price ?? 0));
       return prices.length ? Math.min(...prices) : 0;
     }
-    // base price (giá gốc) cho UI để hiển thị kèm salePrice (nếu có)
-    return p.price ?? 0;
+    return Number(p.price ?? 0);
   }
   private pickDisplaySalePrice(p: ProductResponse){
     if (p.hasVariants) return null;
-    if (p.salePrice!=null && p.price!=null && p.salePrice < p.price) return p.salePrice;
+    if (p.salePrice!=null && p.price!=null && Number(p.salePrice) < Number(p.price)) return Number(p.salePrice);
     return null;
   }
   private pickDisplayStock(p: ProductResponse){
-    if (p.hasVariants && p.variants?.length) return p.variants.reduce((s,v)=>s+(v.stock||0),0);
-    return p.stock ?? 0;
+    if (p.hasVariants && p.variants?.length) return p.variants.reduce((s,v)=>s+(Number(v.stock)||0),0);
+    return Number(p.stock ?? 0);
   }
 
   addToCart(card: ProductCardData){

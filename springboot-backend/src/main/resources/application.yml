@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:4200}
+
 spring:
   application:
     name: springboot-backend
@@ -25,6 +28,22 @@ spring:
       max-file-size: ${MAX_FILE_SIZE:15MB}
       max-request-size: ${MAX_REQUEST_SIZE:20MB}
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid,email,profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/userinfo/v2/me
+            user-name-attribute: email
+
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:}
   api-key:    ${CLOUDINARY_API_KEY:}
@@ -35,5 +54,7 @@ logging:
   level:
     root: INFO
     com.shopmypham: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level %-40logger{36} : %msg%n"

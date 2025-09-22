@@ -45,7 +45,7 @@ import { RouterLink } from '@angular/router';
     </div>
 
     <div style="text-align:right; margin-top:8px">
-      <a class="more" [routerLink]="['/flash', deals[0]?.flashName | lowercase | slugify]">Xem chi tiết ›</a>
+      <a class="more" [routerLink]="['/flash']">Xem chi tiết ›</a>
     </div>
   </section>
   `
@@ -58,7 +58,7 @@ export class FlashDealsComponent implements OnInit {
   constructor(private fs: FlashSaleService) {}
 
   ngOnInit(): void {
-    this.fs.getActive(12).subscribe(list => {
+    this.fs.getActiveDeals(12).subscribe(list => {
       this.deals = list || [];
       const maxEnd = this.deals.reduce((m, x) => new Date(Math.max(m.getTime(), new Date(x.endAt).getTime())), new Date(0));
       this.endAt = maxEnd.getTime() > 0 ? maxEnd : undefined;
