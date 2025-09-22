@@ -15,3 +15,11 @@ target
 **/.env
 *.env
 springboot-backend/.env
+
+# secrets
+.env
+**/.env
+*.env
+springboot-backend/.env
+# archives
+*.zip
