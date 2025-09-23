@@ -2,6 +2,7 @@ package com.shopmypham.modules.order;
 
 import com.shopmypham.core.api.ApiResponse;
 import com.shopmypham.core.exception.NotFoundException;
+import com.shopmypham.modules.coupon.CouponService;          // 👈 NEW
 import com.shopmypham.modules.inventory.InventoryMovement;
 import com.shopmypham.modules.inventory.InventoryMovementRepository;
 import com.shopmypham.modules.inventory.InventoryReason;
@@ -21,6 +22,7 @@ public class AdminOrderController {
   private final OrderItemRepository itemRepo;
   private final OrderStatusHistoryRepository hisRepo;
   private final InventoryMovementRepository invRepo;
+  private final CouponService couponService;                 // 👈 NEW
 
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:read')")
   @GetMapping
@@ -48,6 +50,7 @@ public class AdminOrderController {
     var to = OrderStatus.valueOf(toStatus);
 
     if (to == OrderStatus.cancelled && from != OrderStatus.cancelled) {
+      // 1) hoàn kho
       var items = itemRepo.findByOrderIdOrderByIdAsc(id);
       for (var oi : items){
         var m = new InventoryMovement();
@@ -58,6 +61,8 @@ public class AdminOrderController {
         m.setRefId(id);
         invRepo.save(m);
       }
+      // 2) trả lượt coupon
+      couponService.releaseUsageByOrderId(id);              // 👈 NEW
     }
 
     od.setStatus(to);

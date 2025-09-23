@@ -1,13 +1,15 @@
 package com.shopmypham.modules.order;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopmypham.core.exception.BadRequestException;
 import com.shopmypham.core.exception.NotFoundException;
 import com.shopmypham.modules.cart.*;
+import com.shopmypham.modules.coupon.*;
+import com.shopmypham.modules.coupon.dto.CouponValidateRequest;
+import com.shopmypham.modules.coupon.dto.CouponValidateResponse;
 import com.shopmypham.modules.inventory.*;
-import com.shopmypham.modules.order.dto.*;
 import com.shopmypham.modules.product.*;
+import com.shopmypham.modules.order.dto.*;
+import com.shopmypham.modules.pricing.PricingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +34,11 @@ public class OrderService {
   private final InventoryMovementRepository invRepo;
 
   private final CartService cartService;
-  private final ObjectMapper om = new ObjectMapper();
+
+  // 👇 Thêm 3 bean để áp giá + coupon
+  private final PricingService pricingService;
+  private final CouponService couponService;
+  private final CouponRepository couponRepo;
 
   private String genOrderCode(Long id){
     return "OD" + DateTimeFormatter.ofPattern("yyMMdd").format(java.time.LocalDate.now()) + "-" + id;
@@ -54,7 +60,7 @@ public class OrderService {
       items = all; // checkout toàn giỏ
     }
 
-    // 2) re-pricing + validate tồn
+    // 2) re-pricing + validate tồn (DÙNG PricingService)
     BigDecimal subtotal = BigDecimal.ZERO;
     List<OrderItem> orderLines = new ArrayList<>();
 
@@ -63,16 +69,15 @@ public class OrderService {
       if (Boolean.TRUE.equals(p.getHasVariants()) && it.getVariantId()==null)
         throw new BadRequestException("Thiếu biến thể ở một dòng giỏ");
 
-      BigDecimal unit;
+      BigDecimal unit = pricingService.effectivePrice(it.getProductId(), it.getVariantId()); // 💡 giá hiệu lực 1 chỗ
       String sku;
+
       if (it.getVariantId()!=null){
         var v = variantRepo.findById(it.getVariantId()).orElseThrow(() -> new NotFoundException("Biến thể không tồn tại"));
-        unit = (v.getSalePrice()!=null ? v.getSalePrice() : v.getPrice());
         sku = v.getSku();
         int avail = Optional.ofNullable(invRepo.variantQty(v.getId())).orElse(0);
         if (avail < it.getQuantity()) throw new BadRequestException("Hết hàng hoặc không đủ tồn cho SKU " + sku);
       } else {
-        unit = (p.getSalePrice()!=null ? p.getSalePrice() : p.getPrice());
         sku = p.getSku();
         int avail = Optional.ofNullable(invRepo.productQty(p.getId())).orElse(0);
         if (avail < it.getQuantity()) throw new BadRequestException("Không đủ tồn cho sản phẩm " + p.getName());
@@ -87,16 +92,42 @@ public class OrderService {
       oi.setProductSku(sku);
       oi.setProductName(p.getName());
       oi.setOptionsSnapshot(it.getOptionsSnapshot());
-      oi.setUnitPrice(unit);
+      oi.setUnitPrice(unit);     // đóng băng giá hiệu lực
       oi.setQuantity(it.getQuantity());
       oi.setLineTotal(lineTotal);
       orderLines.add(oi);
     }
 
-    // 3) phí/thuế/khuyến mãi (demo)
-    BigDecimal discount = BigDecimal.ZERO; // TODO: coupon
+    // 3) phí/thuế
     BigDecimal shipping = subtotal.compareTo(new BigDecimal("300000")) >= 0 ? BigDecimal.ZERO : new BigDecimal("30000");
     BigDecimal tax = BigDecimal.ZERO;
+
+    // 3b) COUPON: validate theo items thực tế
+    BigDecimal discount = BigDecimal.ZERO;
+    String couponCode = (req.getCouponCode()==null || req.getCouponCode().isBlank()) ? null : req.getCouponCode().trim();
+    Long couponId = null;
+
+    if (couponCode != null) {
+      var vr = new CouponValidateRequest();
+      vr.setCode(couponCode);
+      var list = new ArrayList<CouponValidateRequest.Item>();
+      for (var oi : orderLines) {
+        var x = new CouponValidateRequest.Item();
+        x.setProductId(oi.getProductId());
+        x.setVariantId(oi.getVariantId());
+        x.setQuantity(oi.getQuantity());
+        list.add(x);
+      }
+      vr.setItems(list);
+
+      CouponValidateResponse r = couponService.validateForUser(userId, vr);
+      if (!r.isValid()) throw new BadRequestException("Coupon invalid: " + r.getReason());
+      discount = r.getDiscountAmount();
+
+      couponId = couponRepo.findActiveNowByCode(couponCode, java.time.LocalDateTime.now())
+          .map(Coupon::getId).orElse(null);
+    }
+
     BigDecimal total = subtotal.add(shipping).subtract(discount).add(tax);
 
     // 4) tạo order (mã tạm → mã chính thức)
@@ -112,6 +143,10 @@ public class OrderService {
     od.setShippingFee(shipping);
     od.setTaxAmount(tax);
     od.setTotalAmount(total);
+
+    // set coupon vào đơn (nếu có)
+    od.setCouponId(couponId);
+    od.setCouponCode(couponCode);
 
     od.setCustomerName(req.getCustomerName());
     od.setCustomerEmail(req.getCustomerEmail());
@@ -142,6 +177,11 @@ public class OrderService {
       invRepo.save(m);
     }
 
+    // 6b) Khóa lượt dùng coupon sau khi tạo order thành công
+    if (couponCode != null) {
+      couponService.reserveUsageForOrder(userId, od.getId(), couponCode);
+    }
+
     // 7) dọn cart
     itemRepo.deleteAll(items);
 
@@ -160,7 +200,7 @@ public class OrderService {
     return res;
   }
 
-  /** Map entity -> DTO */
+  /** Map entity -> DTO (giữ nguyên phần của bạn) */
   public OrderDto toDto(Order o, boolean includeItems) {
     var dto = new OrderDto();
     dto.setId(o.getId());

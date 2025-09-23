@@ -1,5 +1,4 @@
-// src/app/features/checkout/checkout.page.ts
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
@@ -8,6 +7,9 @@ import { OrderService } from '../../core/services/order.service';
 import { CheckoutRequest, CheckoutResponse } from '../../core/models/order.model';
 import { CartService } from '../../core/services/cart.service';
 import { CartSelectionService } from '../../core/services/cart-selection.service';
+
+import { CouponService } from '../../core/services/coupon.service';
+import { CouponValidateRequest, CouponValidateResponse } from '../../core/models/coupon.model';
 
 @Component({
   standalone: true,
@@ -25,6 +27,12 @@ import { CartSelectionService } from '../../core/services/cart-selection.service
     .total { @apply flex justify-between font-semibold text-base border-t pt-3 mt-3; }
     .success { @apply bg-green-50 border border-green-200 rounded-xl p-5 mt-6 text-green-700; }
     .hint { @apply text-sm text-slate-500 mt-3; }
+    .coupon { @apply mt-3; }
+    .coupon .box{ @apply flex gap-2; }
+    .coupon input{ @apply flex-1 border border-slate-300 rounded-lg px-3 py-2; }
+    .ok{ @apply text-green-700 text-sm mt-1; }
+    .bad{ @apply text-red-600 text-sm mt-1; }
+    .link{ @apply text-rose-600 underline cursor-pointer; }
   `],
   template: `
   <section class="wrap">
@@ -63,6 +71,25 @@ import { CartSelectionService } from '../../core/services/cart-selection.service
             </select>
           </div>
 
+          <!-- Mã giảm giá -->
+          <div class="md:col-span-2 coupon">
+            <label>Mã giảm giá</label>
+            <div class="box">
+              <input [(ngModel)]="couponCode" name="couponCode" placeholder="Nhập mã (VD: WELCOME10)" (keyup.enter)="doValidateCoupon()" />
+              <button type="button" class="btn-primary" (click)="doValidateCoupon()" [disabled]="checkingCoupon">
+                {{ checkingCoupon ? 'Đang kiểm tra…' : 'Áp dụng' }}
+              </button>
+            </div>
+
+            <div *ngIf="coupon" [class.ok]="coupon.valid" [class.bad]="!coupon.valid">
+              <ng-container *ngIf="coupon.valid; else badTpl">
+                ✅ Giảm: <b>{{ (coupon.discountAmount || 0) | number:'1.0-0' }} đ</b>
+                <span class="ml-2 link" (click)="clearCoupon()">Bỏ mã</span>
+              </ng-container>
+              <ng-template #badTpl>❌ {{ coupon.reason || 'Mã không hợp lệ' }}</ng-template>
+            </div>
+          </div>
+
           <div class="md:col-span-2 mt-2">
             <button class="btn-primary w-full" [disabled]="submitting || !f.form.valid || !itemIds.length">
               Đặt hàng {{ itemIds.length ? '('+itemIds.length+' mục đã chọn)' : '' }}
@@ -95,17 +122,18 @@ import { CartSelectionService } from '../../core/services/cart-selection.service
   </section>
   `
 })
-export class CheckoutPage {
+export class CheckoutPage implements OnInit {
   private orderSrv = inject(OrderService);
   private cartApi = inject(CartService);
   private router = inject(Router);
   private sel = inject(CartSelectionService);
+  private couponApi = inject(CouponService);
 
   model: CheckoutRequest = {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
-    customerAddress: '',    // ✅ đã có trong interface
+    customerAddress: '',
     paymentMethod: 'COD',
     itemIds: []
   };
@@ -120,33 +148,54 @@ export class CheckoutPage {
   tax = 0;
   total = 0;
 
+  couponCode = localStorage.getItem('coupon:code') || '';
+  coupon: CouponValidateResponse | null = null;
+  checkingCoupon = false;
+  private cartSnapshot: any = null;
+
   constructor() {
     const st = this.router.getCurrentNavigation()?.extras?.state as any;
     const ids = (st?.itemIds as number[] | undefined) ?? this.sel.load();
     this.itemIds = Array.isArray(ids) ? ids : [];
     this.model.itemIds = this.itemIds;
-
-    this.refreshSummary();
   }
 
-  /** Tính lại tóm tắt theo các item đã chọn */
+  ngOnInit() {
+    this.refreshSummary();
+    this.cartApi.get().subscribe({
+      next: (cart) => {
+        this.cartSnapshot = cart;
+        if (this.couponCode) this.doValidateCoupon();
+      }
+    });
+  }
+
+  private toMoney(v: any): number {
+    if (v == null) return 0;
+    if (typeof v === 'number' && isFinite(v)) return v;
+    const s = String(v).replace(/\s+/g, '')
+      .replace(/[^\d.,-]/g, '')
+      .replace(/(\d)[.,](?=\d{3}\b)/g, '$1');
+    const num = parseFloat(s.replace(/,/g, '.'));
+    return isFinite(num) ? num : 0;
+  }
+
+  private recalcTotals() {
+    const afterDiscount = Math.max(0, this.cartSubtotal - this.discount);
+    this.shippingFee = afterDiscount >= 300_000 ? 0 : (afterDiscount > 0 ? 30_000 : 0);
+    this.total = Math.max(0, afterDiscount + this.shippingFee + this.tax);
+  }
+
   private refreshSummary() {
     if (!this.itemIds.length) {
       this.cartSubtotal = this.total = this.shippingFee = this.discount = this.tax = 0;
       return;
     }
-
     this.cartApi.get().subscribe({
       next: (cart) => {
         const chosen = cart.items.filter(it => this.itemIds.includes(it.id));
-        const sub = chosen.reduce((s, it) => s + Number(it.lineTotal || 0), 0);
-        this.cartSubtotal = sub;
-
-        // Demo rule
-        this.shippingFee = sub >= 300_000 ? 0 : 30_000;
-        this.discount = 0;
-        this.tax = 0;
-        this.total = sub + this.shippingFee - this.discount + this.tax;
+        this.cartSubtotal = chosen.reduce((s, it) => s + Number(it.lineTotal || 0), 0);
+        this.recalcTotals();
       },
       error: () => {
         this.cartSubtotal = this.total = this.shippingFee = this.discount = this.tax = 0;
@@ -154,13 +203,71 @@ export class CheckoutPage {
     });
   }
 
+  // ===== Coupon =====
+  private buildValidateRequest(): CouponValidateRequest {
+    const items = (this.cartSnapshot?.items || [])
+      .filter((x:any) => this.itemIds.includes(x.id))
+      .map((it:any) => ({ productId: it.productId, variantId: it.variantId ?? null, quantity: it.qty }));
+    return { code: (this.couponCode || '').trim(), items };
+  }
+
+  doValidateCoupon(){
+    this.coupon = null;
+    const code = (this.couponCode || '').trim();
+    if (!code) { this.discount = 0; this.recalcTotals(); return; }
+
+    const req = this.buildValidateRequest();
+    if (!req.items.length) { alert('Không có sản phẩm để áp mã'); return; }
+
+    this.checkingCoupon = true;
+    this.couponApi.validate(req).subscribe({
+      next: r => {
+        this.coupon = r;
+        const d = r.valid ? this.toMoney(r.discountAmount) : 0;
+        this.discount = Math.min(Math.max(0, d), this.cartSubtotal);
+        this.recalcTotals();
+        this.checkingCoupon = false;
+
+        if (r.valid) {
+          localStorage.setItem('coupon:code', r.code);
+        } else {
+          localStorage.removeItem('coupon:code');
+          alert(r.reason || 'Mã không hợp lệ');
+        }
+      },
+      error: () => {
+        this.coupon = null;
+        this.discount = 0;
+        this.recalcTotals();
+        this.checkingCoupon = false;
+        alert('Không kiểm tra được mã');
+      }
+    });
+  }
+
+  clearCoupon(){
+    this.coupon = null;
+    this.couponCode = '';      // <— mở lại ô nhập, bỏ hẳn mã cũ
+    this.discount = 0;
+    this.recalcTotals();
+    localStorage.removeItem('coupon:code');
+  }
+
+  // ===== Submit =====
   submit() {
     if (!this.itemIds.length || this.submitting) return;
 
-    // Map nhẹ để BE dễ dùng nếu có: shippingAddress1 = customerAddress
+    // ưu tiên mã đã validate, nếu không thì lấy ô nhập (trim). Không gửi nếu trống.
+    const couponCodeToSend =
+      (this.coupon && this.coupon.valid && this.coupon.code)
+        ? this.coupon.code
+        : (this.couponCode || '').trim() || undefined;
+
     const payload: CheckoutRequest = {
       ...this.model,
-      shippingAddress1: this.model.customerAddress
+      shippingAddress1: this.model.customerAddress,
+      couponCode: couponCodeToSend,
+      itemIds: this.itemIds
     };
 
     this.submitting = true;
@@ -169,6 +276,7 @@ export class CheckoutPage {
         this.resp = r;
         this.submitting = false;
         this.sel.clear();
+        localStorage.removeItem('coupon:code');
       },
       error: () => { this.submitting = false; }
     });

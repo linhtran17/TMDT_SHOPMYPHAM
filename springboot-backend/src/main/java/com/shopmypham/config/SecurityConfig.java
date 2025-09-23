@@ -41,14 +41,11 @@ public class SecurityConfig {
   private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
   private final UserRepository userRepo;
   private final JwtService jwtService;
-  private final PasswordEncoder passwordEncoder; // ✅ lấy từ PasswordConfig
+  private final PasswordEncoder passwordEncoder;
 
   @Value("${app.frontend-url:http://localhost:4200}")
   private String frontendUrl;
 
-  // ❗ KHÔNG khai báo @Bean passwordEncoder() ở đây để tránh trùng tên
-
-  /** Nạp roles/permissions sớm để tránh lazy và build UserDetails chuẩn Spring Security */
   @Bean
   @Transactional(readOnly = true)
   public UserDetailsService userDetailsService() {
@@ -84,7 +81,7 @@ public class SecurityConfig {
   public AuthenticationProvider authenticationProvider() {
     var provider = new DaoAuthenticationProvider();
     provider.setUserDetailsService(userDetailsService());
-    provider.setPasswordEncoder(passwordEncoder); // ✅ dùng bean đã inject
+    provider.setPasswordEncoder(passwordEncoder);
     return provider;
   }
 
@@ -103,28 +100,38 @@ public class SecurityConfig {
     http
       .csrf(csrf -> csrf.disable())
       .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-      // OAuth2 flow cần session cho chính lần login → IF_REQUIRED
+      // OAuth2 login cần session cho chính lần login
       .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
       .authenticationProvider(authenticationProvider())
       .authorizeHttpRequests(auth -> auth
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
           // OAuth2 endpoints
           .requestMatchers("/oauth2/**", "/login/oauth2/**", "/oauth2/authorization/**").permitAll()
+
           // Auth APIs
           .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
-          // Public APIs
+
+          // Public APIs (GET)
           .requestMatchers(HttpMethod.GET,
               "/api/banners/public",
               "/api/news/public/**",
               "/api/categories/tree",
               "/api/products/**",
               "/api/flash-sales/**",
-              "/api/inventory/stock/**"
+              "/api/inventory/stock/**",
+              "/api/coupons/public"               // 👈 khách xem danh sách mã
           ).permitAll()
+
+          // Public APIs (POST) – preview validate cho khách
+          .requestMatchers(HttpMethod.POST, "/api/coupons/preview-validate").permitAll() // 👈 khách preview
+
           // Admin
           .requestMatchers("/api/admin/**").hasRole("ADMIN")
-          // Other APIs -> cần auth
+
+          // Other APIs -> cần auth (bao gồm /api/coupons/validate và /api/orders/checkout)
           .requestMatchers("/api/**").authenticated()
+
           // Các tài nguyên khác (Angular, ảnh, …) -> allow
           .anyRequest().permitAll()
       )
@@ -152,7 +159,7 @@ public class SecurityConfig {
       );
 
     // JWT filter cho các request /api sau khi đã login
-    http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+    http.addFilterBefore(jwtAuthenticationFilter(userDetailsService()), UsernamePasswordAuthenticationFilter.class);
     return http.build();
   }
 

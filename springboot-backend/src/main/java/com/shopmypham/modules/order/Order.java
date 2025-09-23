@@ -50,6 +50,13 @@ public class Order {
   @Column(name = "total_amount", precision = 19, scale = 2, nullable = false)
   private BigDecimal totalAmount = BigDecimal.ZERO;
 
+  // 👇👇 bổ sung để đối soát coupon nhanh
+  @Column(name = "coupon_id")
+  private Long couponId;
+
+  @Column(name = "coupon_code", length = 50)
+  private String couponCode;
+
   @Column(name = "customer_name", nullable = false)
   private String customerName;
 
