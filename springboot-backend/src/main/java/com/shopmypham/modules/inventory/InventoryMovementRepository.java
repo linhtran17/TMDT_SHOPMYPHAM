@@ -1,6 +1,8 @@
+// src/main/java/com/shopmypham/modules/inventory/InventoryMovementRepository.java
 package com.shopmypham.modules.inventory;
 
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
@@ -56,4 +58,21 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
       @Param("docNo") String docNo,
       Pageable pageable
   );
+
+  /* =========================
+     Analytics: Low stock
+     ========================= */
+  // Trả về [product_id, name, sku, stock]
+  @Query(value = """
+    SELECT p.id, p.name, p.sku, COALESCE(SUM(m.change_qty),0) AS stock
+    FROM products p
+    LEFT JOIN inventory_movements m
+      ON m.product_id = p.id AND m.variant_id IS NULL
+    WHERE p.active = 1
+    GROUP BY p.id, p.name, p.sku
+    HAVING stock <= :threshold
+    ORDER BY stock ASC
+    LIMIT :limit
+  """, nativeQuery = true)
+  List<Object[]> findLowStockProducts(@Param("threshold") int threshold, @Param("limit") int limit);
 }

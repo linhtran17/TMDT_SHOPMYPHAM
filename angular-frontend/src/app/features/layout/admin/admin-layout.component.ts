@@ -66,7 +66,7 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
 
         <a routerLink="/admin" [routerLinkActiveOptions]="{exact:true}" routerLinkActive="active" class="item group">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h7v9H3zM14 3h7v18h-7zM3 3h7v7H3z"/></svg>
-          Tổng quan
+          Thống kê
         </a>
 
         <a routerLink="/admin/products" routerLinkActive="active" class="item group">

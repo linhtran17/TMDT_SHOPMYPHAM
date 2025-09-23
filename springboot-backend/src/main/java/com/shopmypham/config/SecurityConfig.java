@@ -120,7 +120,9 @@ public class SecurityConfig {
               "/api/products/**",
               "/api/flash-sales/**",
               "/api/inventory/stock/**",
-              "/api/coupons/public"               // 👈 khách xem danh sách mã
+              "/api/coupons/public",      
+               "/api/wishlist/ids",
+        "/api/wishlist/count"         // 👈 khách xem danh sách mã
           ).permitAll()
 
           // Public APIs (POST) – preview validate cho khách
@@ -159,7 +161,7 @@ public class SecurityConfig {
       );
 
     // JWT filter cho các request /api sau khi đã login
-    http.addFilterBefore(jwtAuthenticationFilter(userDetailsService()), UsernamePasswordAuthenticationFilter.class);
+http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
     return http.build();
   }
 
