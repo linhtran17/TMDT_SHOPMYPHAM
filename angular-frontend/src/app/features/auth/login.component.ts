@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+// src/app/features/auth/login.component.ts
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 type LoginPayload = { email: string; password: string };
@@ -11,17 +12,26 @@ type LoginPayload = { email: string; password: string };
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
-    <!-- Khung cao ~viewport, canh giữa dọc + ngang -->
     <section class="min-h-[80vh] grid place-items-center px-4">
       <div class="w-full max-w-md">
-        <!-- Logo + tiêu đề -->
         <div class="text-center mb-6">
           <img src="assets/img/logohong.png" alt="L’Éclat" class="w-10 h-10 mx-auto mb-2 object-contain" />
           <h1 class="text-2xl font-semibold">Đăng nhập</h1>
           <p class="text-slate-500 text-sm mt-1">Chào mừng bạn quay lại 👋</p>
         </div>
 
-        <!-- Card -->
+        <!-- Banner đăng ký thành công -->
+        <div *ngIf="registered"
+             class="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm">
+          🎉 Tạo tài khoản thành công! Vui lòng đăng nhập.
+        </div>
+
+        <!-- Banner lỗi chuyển hướng -->
+        <div *ngIf="incomingError"
+             class="mb-4 p-3 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-sm">
+          {{ incomingError }}
+        </div>
+
         <div class="bg-white/90 backdrop-blur border border-rose-100 rounded-2xl shadow-sm p-6 md:p-8">
           <form [formGroup]="f" (ngSubmit)="submit()" class="space-y-4">
             <div>
@@ -58,13 +68,11 @@ type LoginPayload = { email: string; password: string };
               {{ loading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
             </button>
 
-            <!-- Divider -->
             <div class="relative my-4 text-center text-sm text-slate-500">
               <span class="px-3 bg-white">hoặc</span>
               <hr class="border-rose-100 -mt-3"/>
             </div>
 
-            <!-- Google -->
             <button type="button"
                     class="w-full border rounded-lg py-2.5 flex items-center justify-center gap-2 hover:bg-rose-50"
                     (click)="google()">
@@ -90,20 +98,38 @@ export class LoginComponent {
   loading = false;
   error = '';
 
+  // cờ/ thông điệp lấy từ query params
+  registered = false;
+  incomingError = '';
+
+  private route = inject(ActivatedRoute);
+
   constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {
     this.f = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.required],
     });
+
+    // đọc query params 1 lần (cũng có thể dùng .queryParams để lắng theo thời gian thực)
+    const qp = this.route.snapshot.queryParamMap;
+    this.registered = qp.get('registered') === '1';
+    const err = qp.get('error');
+    if (err === 'missing_token') this.incomingError = 'Thiếu mã xác thực, vui lòng thử lại.';
+    else if (err === 'invalid_token') this.incomingError = 'Phiên đăng nhập không hợp lệ.';
+    else if (err) this.incomingError = err;
   }
 
   submit() {
     if (this.f.invalid) { this.f.markAllAsTouched(); return; }
     const payload = this.f.getRawValue() as LoginPayload;
+
     this.loading = true; this.error = '';
     this.auth.login(payload).subscribe({
       next: () => { this.loading = false; this.router.navigateByUrl('/'); },
-      error: () => { this.loading = false; this.error = 'Đăng nhập thất bại'; }
+      error: (e) => {
+        this.loading = false;
+        this.error = e?.error?.message || 'Đăng nhập thất bại';
+      }
     });
   }
 

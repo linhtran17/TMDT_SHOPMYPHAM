@@ -1,15 +1,22 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of } from 'rxjs';
+import { map, switchMap, tap, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export interface SimpleUser {
   id: number;
-  name?: string;
-  fullName?: string | null;
   email: string;
   roles: string[];
+  name?: string;
+  fullName?: string | null;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  message?: string | null;
+  data: T;
+  timestamp?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -17,81 +24,87 @@ export class AuthService {
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY  = 'auth_user';
 
-  /** Mọi REST API vẫn đi qua /api (đã có proxy/interceptor) */
   private api = '/api';
 
   private _user$ = new BehaviorSubject<SimpleUser | null>(this.readUser());
-  public  user$ = this._user$.asObservable();
-  userSig = signal<SimpleUser | null>(this._user$.value);
+  readonly user$ = this._user$.asObservable();
+  readonly userSig = signal<SimpleUser | null>(this._user$.value);
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    if (this.token && !this._user$.value) {
+      this.fetchMe().pipe(catchError(() => of(null))).subscribe();
+    }
+  }
 
   // ===== token + user cache =====
-  get token(): string | null { return this.getToken(); }
+  get token(): string | null { return localStorage.getItem(this.TOKEN_KEY); }
+  get isLoggedIn(): boolean { return !!this.token; }
   userSnapshot(): SimpleUser | null { return this._user$.getValue(); }
-  currentUser(): SimpleUser | null { return this._user$.getValue(); }
-  fetchMe(): Observable<SimpleUser> { return this.me(); }
 
-  setToken(t: string){ localStorage.setItem(this.TOKEN_KEY, t); }
-  getToken(): string | null { return localStorage.getItem(this.TOKEN_KEY); }
-  clearToken(){ localStorage.removeItem(this.TOKEN_KEY); }
+  private setToken(t: string){ localStorage.setItem(this.TOKEN_KEY, t); }
+  private clearToken(){ localStorage.removeItem(this.TOKEN_KEY); }
 
-  setCurrentUser(u: SimpleUser | null){
+  /** Public wrapper để component khác dùng (vd: OAuth2 callback) */
+  public saveToken(token: string){
+    const clean = token.replace(/^Bearer\s+/i, '');
+    this.setToken(clean);
+  }
+
+  private setCurrentUser(u: SimpleUser | null){
     if (u) localStorage.setItem(this.USER_KEY, JSON.stringify(u));
     else   localStorage.removeItem(this.USER_KEY);
     this._user$.next(u);
     this.userSig.set(u);
   }
+
   private readUser(): SimpleUser | null {
     try { return JSON.parse(localStorage.getItem(this.USER_KEY) || 'null'); }
     catch { return null; }
   }
 
   // ===== Username/Password login =====
-  login(payload: { email: string; password: string }): Observable<any>;
-  login(email: string, password: string): Observable<any>;
-  login(arg1: any, arg2?: any): Observable<any> {
+  login(payload: { email: string; password: string }): Observable<SimpleUser>;
+  login(email: string, password: string): Observable<SimpleUser>;
+  login(arg1: any, arg2?: any): Observable<SimpleUser> {
     const email = typeof arg1 === 'string' ? arg1 : arg1?.email;
     const password = typeof arg2 === 'string' ? arg2 : arg1?.password;
 
-    return this.http.post<any>(`${this.api}/auth/login`, { email, password }).pipe(
-      map(res => res?.data ?? res),
-      tap((data: any) => {
-        if (data?.token) this.setToken(data.token);
-        const roles: string[] = Array.isArray(data?.roles) ? data.roles : Array.from(data?.roles ?? []);
-        const user: SimpleUser = {
-          id: 0,
-          email: data?.email ?? email,
-          roles,
-          name: data?.name ?? data?.fullName ?? undefined,
-          fullName: data?.fullName ?? data?.name ?? null
-        };
-        this.setCurrentUser(user);
-      })
+    return this.http.post<ApiResponse<{ token: string }>|{ token: string }>(
+      `${this.api}/auth/login`, { email, password }
+    ).pipe(
+      map(r => ('data' in (r as any) ? (r as any).data?.token : (r as any)?.token)),
+      tap(token => { if (token) this.saveToken(token); }),
+      switchMap(() => this.fetchMe())
     );
   }
 
-  register(payload: { name?: string; fullName?: string; email: string; password: string }): Observable<any> {
+  register(payload: { fullName: string; email: string; password: string }): Observable<number> {
     const body = {
-      name: payload.name ?? payload.fullName ?? '',
-      email: payload.email,
+      fullName: (payload.fullName || '').trim(),
+      email: (payload.email || '').trim(),
       password: payload.password
     };
-    return this.http.post<any>(`${this.api}/auth/register`, body).pipe(
-      map(res => res?.data ?? res)
+    return this.http.post<ApiResponse<number>>(`${this.api}/auth/register`, body).pipe(
+      map(r => r.data)
     );
   }
 
-  me(): Observable<SimpleUser> {
-    return this.http.get<any>(`${this.api}/auth/me`).pipe(
-      map(res => res?.data ?? res),
+  fetchMe(): Observable<SimpleUser> {
+    return this.http.get<ApiResponse<SimpleUser>>(`${this.api}/auth/me`).pipe(
+      map(r => r.data),
       tap(u => this.setCurrentUser(u))
     );
   }
 
-  logout(_silent?: boolean){
-    this.clearToken();
-    this.setCurrentUser(null);
+  /** ĐÚNG: gọi BE xoá session OAuth2, rồi xoá JWT + cache ở FE */
+  logout(silent = false){
+    this.http.post('/api/auth/logout', {}, { withCredentials: true, responseType: 'text' as 'json' })
+      .pipe(catchError(() => of(null)))
+      .subscribe(() => {
+        this.clearToken();
+        this.setCurrentUser(null);
+        if (!silent) location.href = '/login';
+      });
   }
 
   hasRole(role: string): boolean {
@@ -99,10 +112,8 @@ export class AuthService {
   }
 
   // ===== Google OAuth2 =====
-  /** Điều hướng browser sang BE để bắt đầu login Google */
   googleLogin(): void {
     const base = environment.apiBase || 'http://localhost:8080';
-    // Path mặc định của Spring Security
     window.location.href = `${base}/oauth2/authorization/google`;
   }
 }

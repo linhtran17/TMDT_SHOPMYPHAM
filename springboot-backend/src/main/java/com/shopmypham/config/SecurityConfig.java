@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/config/SecurityConfig.java
 package com.shopmypham.config;
 
 import com.shopmypham.modules.auth.GoogleOAuth2UserService;
@@ -7,34 +6,40 @@ import com.shopmypham.modules.auth.JwtService;
 import com.shopmypham.modules.auth.OAuth2LoginSuccessHandler;
 import com.shopmypham.modules.auth.Role;
 import com.shopmypham.modules.user.UserRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.*;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.cors.*;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
+import java.util.Collection;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
-@RequiredArgsConstructor
 public class SecurityConfig {
 
   private final GoogleOAuth2UserService googleOAuth2UserService;
@@ -46,17 +51,30 @@ public class SecurityConfig {
   @Value("${app.frontend-url:http://localhost:4200}")
   private String frontendUrl;
 
+  @Autowired
+  public SecurityConfig(GoogleOAuth2UserService googleOAuth2UserService,
+                        OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+                        UserRepository userRepo,
+                        JwtService jwtService,
+                        PasswordEncoder passwordEncoder) {
+    this.googleOAuth2UserService = googleOAuth2UserService;
+    this.oAuth2LoginSuccessHandler = oAuth2LoginSuccessHandler;
+    this.userRepo = userRepo;
+    this.jwtService = jwtService;
+    this.passwordEncoder = passwordEncoder;
+  }
+
   @Bean
   @Transactional(readOnly = true)
   public UserDetailsService userDetailsService() {
     return email -> userRepo.findByEmailWithRolesAndPerms(email)
         .map(u -> {
           var authorities = new ArrayList<SimpleGrantedAuthority>();
-          var roles = (u.getRoles() == null ? List.<Role>of() : u.getRoles());
+          Collection<Role> roles = (u.getRoles() == null) ? new ArrayList<>() : u.getRoles();
           for (Role r : roles) {
             if (r != null && r.getName() != null) {
-              String raw = r.getName().trim();
-              String springRole = raw.startsWith("ROLE_") ? raw : "ROLE_" + raw;
+              String name = r.getName().trim();
+              String springRole = name.startsWith("ROLE_") ? name : "ROLE_" + name;
               authorities.add(new SimpleGrantedAuthority(springRole));
               if (r.getPermissions() != null) {
                 r.getPermissions().forEach(p -> {
@@ -67,7 +85,7 @@ public class SecurityConfig {
               }
             }
           }
-          boolean locked = Boolean.FALSE.equals(u.getEnabled());
+          boolean locked = (u.getEnabled() != null && !u.getEnabled());
           return User.withUsername(u.getEmail())
               .password(u.getPassword())
               .authorities(authorities)
@@ -96,90 +114,96 @@ public class SecurityConfig {
   }
 
   @Bean
-  public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
-    http
-      .csrf(csrf -> csrf.disable())
-      .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-      // OAuth2 login cần session cho chính lần login
-      .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-      .authenticationProvider(authenticationProvider())
-      .authorizeHttpRequests(auth -> auth
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-          // OAuth2 endpoints
-          .requestMatchers("/oauth2/**", "/login/oauth2/**", "/oauth2/authorization/**").permitAll()
-
-          // Auth APIs
-          .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
-
-          // Public APIs (GET)
-          .requestMatchers(HttpMethod.GET,
-              "/api/banners/public",
-              "/api/news/public/**",
-              "/api/categories/tree",
-              "/api/products/**",
-              "/api/flash-sales/**",
-              "/api/inventory/stock/**",
-              "/api/coupons/public",      
-               "/api/wishlist/ids",
-        "/api/wishlist/count"         // 👈 khách xem danh sách mã
-          ).permitAll()
-
-          // Public APIs (POST) – preview validate cho khách
-          .requestMatchers(HttpMethod.POST, "/api/coupons/preview-validate").permitAll() // 👈 khách preview
-
-          // Admin
-          .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-          // Other APIs -> cần auth (bao gồm /api/coupons/validate và /api/orders/checkout)
-          .requestMatchers("/api/**").authenticated()
-
-          // Các tài nguyên khác (Angular, ảnh, …) -> allow
-          .anyRequest().permitAll()
-      )
-      // Chuẩn hoá JSON cho 401/403
-      .exceptionHandling(e -> e
-          .authenticationEntryPoint((req, res, ex) -> {
-            res.setStatus(401);
-            res.setContentType("application/json;charset=UTF-8");
-            res.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}");
-          })
-          .accessDeniedHandler((req, res, ex) -> {
-            res.setStatus(403);
-            res.setContentType("application/json;charset=UTF-8");
-            res.getWriter().write("{\"success\":false,\"message\":\"Access denied\"}");
-          })
-      )
-      // OAuth2 login: dùng custom userService + success handler để phát JWT và redirect FE
-      .oauth2Login(oauth -> oauth
-          .userInfoEndpoint(u -> u.userService(googleOAuth2UserService))
-          .successHandler(oAuth2LoginSuccessHandler)
-          .failureHandler((req, res, ex) -> {
-            res.setStatus(302);
-            res.setHeader("Location", frontendUrl + "/login?error=google");
-          })
-      );
-
-    // JWT filter cho các request /api sau khi đã login
-http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-    return http.build();
-  }
-
-  @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cors = new CorsConfiguration();
-    cors.setAllowedOriginPatterns(List.of(
+    cors.setAllowedOriginPatterns(Arrays.asList(
         frontendUrl,
         "http://localhost:4200",
         "http://127.0.0.1:4200",
         "http://localhost:5173"
     ));
-    cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-    cors.setAllowedHeaders(List.of("*"));
+    cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+    cors.setAllowedHeaders(Arrays.asList("*"));
     cors.setAllowCredentials(true);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cors);
     return source;
+  }
+
+  @Bean @Order(1)
+  public SecurityFilterChain apiChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+    http
+      .securityMatcher("/api/**")
+      .csrf(AbstractHttpConfigurer::disable)
+      .cors(c -> c.configurationSource(corsConfigurationSource()))
+      .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .authenticationProvider(authenticationProvider())
+      .oauth2Login(AbstractHttpConfigurer::disable)
+      .formLogin(AbstractHttpConfigurer::disable)
+      .httpBasic(AbstractHttpConfigurer::disable)
+      .logout(AbstractHttpConfigurer::disable)
+      .exceptionHandling(e -> e
+        .authenticationEntryPoint((req, res, ex) -> {
+          res.setStatus(401);
+          res.setContentType("application/json;charset=UTF-8");
+          res.getWriter().write("{\"success\":false,\"message\":\"Unauthorized\"}");
+        })
+        .accessDeniedHandler((req, res, ex) -> {
+          res.setStatus(403);
+          res.setContentType("application/json;charset=UTF-8");
+          res.getWriter().write("{\"success\":false,\"message\":\"Access denied\"}");
+        })
+      )
+      .authorizeHttpRequests(auth -> auth
+        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        .requestMatchers(HttpMethod.POST,
+          "/api/auth/login",
+          "/api/auth/register",
+          "/api/auth/logout"
+        ).permitAll()
+        .requestMatchers(HttpMethod.GET,
+          "/api/banners/public",
+          "/api/news/public/**",
+          "/api/categories/tree",
+          "/api/products/**",
+          "/api/flash-sales/**",
+          "/api/inventory/stock/**",
+          "/api/coupons/public"
+        ).permitAll()
+        .requestMatchers(HttpMethod.POST, "/api/coupons/preview-validate").permitAll()
+        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+        .anyRequest().authenticated()
+      );
+
+    http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+    return http.build();
+  }
+
+  @Bean @Order(2)
+  public SecurityFilterChain webChain(HttpSecurity http) throws Exception {
+    http
+      .csrf(AbstractHttpConfigurer::disable)
+      .cors(c -> c.configurationSource(corsConfigurationSource()))
+      .authorizeHttpRequests(a -> a
+        .requestMatchers("/oauth2/**", "/login/oauth2/**", "/oauth2/authorization/**").permitAll()
+        .anyRequest().permitAll()
+      )
+      .oauth2Login(oauth -> oauth
+        .userInfoEndpoint(u -> u.userService(googleOAuth2UserService))
+        .successHandler(oAuth2LoginSuccessHandler)
+        .failureHandler((req, res, ex) -> {
+          res.setStatus(302);
+          res.setHeader("Location", frontendUrl + "/login?error=google");
+        })
+      )
+      .logout(l -> l
+        .logoutUrl("/logout")
+        .logoutSuccessUrl("/")
+        .deleteCookies("JSESSIONID")
+        .clearAuthentication(true)
+        .invalidateHttpSession(true)
+      );
+    return http.build();
   }
 }

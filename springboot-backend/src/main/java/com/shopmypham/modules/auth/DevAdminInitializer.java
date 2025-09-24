@@ -38,12 +38,13 @@ public class DevAdminInitializer implements CommandLineRunner {
     roleRepo.save(adminRole);
 
     if (!userRepo.existsByEmail(adminEmail)) {
-      var admin = new User();
-      admin.setEmail(adminEmail);
-      admin.setPassword(encoder.encode(adminPassword));
-      admin.setEnabled(true);
-      admin.setRoles(java.util.Set.of(adminRole));
-      userRepo.save(admin);
-    }
+  var admin = new User();
+  admin.setFullName("Administrator");          // ✅ THÊM
+  admin.setEmail(adminEmail);
+  admin.setPassword(encoder.encode(adminPassword));
+  admin.setEnabled(true);
+  admin.setRoles(java.util.Set.of(adminRole));
+  userRepo.save(admin);
+}
   }
 }

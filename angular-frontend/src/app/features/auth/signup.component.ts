@@ -23,10 +23,14 @@ import { RegisterRequest } from '../../core/models';
         <!-- Card -->
         <div class="bg-white/90 backdrop-blur border border-rose-100 rounded-2xl shadow-sm p-6 md:p-8">
           <form [formGroup]="f" (ngSubmit)="submit()" class="space-y-4">
-            <div>
-              <label class="block text-sm mb-1">Họ tên</label>
-              <input class="inp w-full" formControlName="fullName" type="text" placeholder="Nguyễn Văn A"/>
-            </div>
+           <div>
+  <label class="block text-sm mb-1">Họ tên</label>
+  <input class="inp w-full" formControlName="fullName" type="text" placeholder="Nguyễn Văn A"/>
+  <div class="text-xs text-rose-600 mt-1" *ngIf="f.get('fullName')?.invalid && f.get('fullName')?.touched">
+    Nhập họ tên (≥ 2 ký tự)
+  </div>
+</div>
+
 
             <div>
               <label class="block text-sm mb-1">Email</label>
@@ -68,23 +72,34 @@ export class SignupComponent {
 
   constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {
     this.f = this.fb.group({
-      fullName: [''],
-      email: ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-    });
+  fullName: ['', [Validators.required, Validators.minLength(2)]], // ✅ REQUIRED
+  email: ['', [Validators.required, Validators.email]],
+  password: ['', [Validators.required, Validators.minLength(6)]],
+});
   }
 
   submit() {
-    if (this.f.invalid) { this.f.markAllAsTouched(); return; }
-    const payload: RegisterRequest = {
-      fullName: (this.f.value.fullName || '').trim(),
-      email: (this.f.value.email || '').trim(),
-      password: this.f.value.password,
-    };
-    this.loading = true; this.error = '';
-    this.auth.register(payload).subscribe({
-      next: () => { this.loading = false; this.router.navigateByUrl('/'); },
-      error: (e) => { this.loading = false; this.error = e?.error?.message || 'Đăng ký thất bại'; }
-    });
-  }
+  if (this.f.invalid) { this.f.markAllAsTouched(); return; }
+  const payload: RegisterRequest = {
+    fullName: (this.f.value.fullName || '').trim(),
+    email: (this.f.value.email || '').trim(),
+    password: this.f.value.password,
+  };
+
+  this.loading = true; this.error = '';
+  this.auth.register(payload).subscribe({
+    next: () => {
+      this.loading = false;
+      // Thông báo thành công
+      alert('Tạo tài khoản thành công! Vui lòng đăng nhập.');
+      // Điều hướng tới trang đăng nhập (kèm cờ để hiện banner đẹp hơn)
+      this.router.navigate(['/login'], { queryParams: { registered: 1 } });
+    },
+    error: (e) => {
+      this.loading = false;
+      this.error = e?.error?.message || 'Đăng ký thất bại';
+    }
+  });
+}
+
 }
