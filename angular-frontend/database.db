@@ -917,22 +917,22 @@ VALUES
     (21, 19, 'EDP', 'edp', NULL, NULL, 2, 1);
 
     INSERT INTO product_variants
-(id, product_id, sku, price, sale_price, stock, options_json, active)
+(id, product_id, sku, price, sale_price, options_json, active)
 VALUES
   -- 3CE Velvet Lip Tint (1006)
-  (2001, 1006, '3CE-VLT-DAF', 220000, 195000, 50,  JSON_OBJECT('Color','Daffodil'), 1),
-  (2002, 1006, '3CE-VLT-NAD', 220000, 195000, 60,  JSON_OBJECT('Color','Near And Dear'), 1),
-  (2003, 1006, '3CE-VLT-TPE', 220000, 195000, 55,  JSON_OBJECT('Color','Taupe'), 1),
+  (2001, 1006, '3CE-VLT-DAF', 220000, 195000,  JSON_OBJECT('Color','Daffodil'), 1),
+  (2002, 1006, '3CE-VLT-NAD', 220000, 195000,  JSON_OBJECT('Color','Near And Dear'), 1),
+  (2003, 1006, '3CE-VLT-TPE', 220000, 195000,   JSON_OBJECT('Color','Taupe'), 1),
 
   -- Maybelline Fit Me Foundation (1007)
-  (2004, 1007, 'MAY-FIT-120', 199000, 179000, 40,  JSON_OBJECT('Shade','120'), 1),
-  (2005, 1007, 'MAY-FIT-128', 199000, 179000, 38,  JSON_OBJECT('Shade','128'), 1),
-  (2006, 1007, 'MAY-FIT-220', 199000, 179000, 35,  JSON_OBJECT('Shade','220'), 1),
+  (2004, 1007, 'MAY-FIT-120', 199000, 179000,  JSON_OBJECT('Shade','120'), 1),
+  (2005, 1007, 'MAY-FIT-128', 199000, 179000,  JSON_OBJECT('Shade','128'), 1),
+  (2006, 1007, 'MAY-FIT-220', 199000, 179000,  JSON_OBJECT('Shade','220'), 1),
 
   -- Innisfree My Real Squeeze Mask (1016)
-  (2007, 1016, 'INN-MRSM-GT', 25000, NULL, 200,     JSON_OBJECT('Type','Green Tea'), 1),
-  (2008, 1016, 'INN-MRSM-AL', 25000, NULL, 220,     JSON_OBJECT('Type','Aloe'), 1),
-  (2009, 1016, 'INN-MRSM-RC', 25000, NULL, 210,     JSON_OBJECT('Type','Rice'), 1)
+  (2007, 1016, 'INN-MRSM-GT', 25000, NULL,      JSON_OBJECT('Type','Green Tea'), 1),
+  (2008, 1016, 'INN-MRSM-AL', 25000, NULL,     JSON_OBJECT('Type','Aloe'), 1),
+  (2009, 1016, 'INN-MRSM-RC', 25000, NULL,     JSON_OBJECT('Type','Rice'), 1)
 ;
 
 
