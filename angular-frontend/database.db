@@ -590,6 +590,14 @@ WHERE NOT EXISTS (SELECT 1 FROM coupons WHERE code='SAVE50K');
 
 ======db của giảm giá =========
 
+sửa phần tồn kho 
+ALTER TABLE inventory_movements
+  ADD COLUMN reversed_of_id BIGINT NULL,
+  ADD COLUMN locked TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN deleted_at DATETIME NULL,
+  ADD INDEX idx_inv_reversed_of (reversed_of_id),
+  ADD INDEX idx_inv_deleted (deleted_at);
+
 
 
 

@@ -1,30 +1,24 @@
 import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import {
-  InventoryMovement, MovementCreateRequest, MovementSearchParams, PageResponse
-} from '../models/inventory.model';
+import { InventoryMovement, MovementCreateRequest, MovementSearchParams, PageResponse } from '../models/inventory.model';
 
 @Injectable({ providedIn: 'root' })
 export class InventoryService {
   private api = inject(ApiService);
 
   productQty(productId: number): Observable<number> {
-    return this.api.get<any>(`/api/inventory/stock/products/${productId}`)
-      .pipe(map(r => r?.data ?? r));
+    return this.api.get<any>(`/api/inventory/stock/products/${productId}`).pipe(map(r => r?.data ?? r));
   }
 
   variantQty(variantId: number): Observable<number> {
-    return this.api.get<any>(`/api/inventory/stock/variants/${variantId}`)
-      .pipe(map(r => r?.data ?? r));
+    return this.api.get<any>(`/api/inventory/stock/variants/${variantId}`).pipe(map(r => r?.data ?? r));
   }
 
   create(body: MovementCreateRequest): Observable<InventoryMovement> {
-    return this.api.post<any>('/api/inventory/movements', body)
-      .pipe(map(r => r?.data ?? r));
+    return this.api.post<any>('/api/inventory/movements', body).pipe(map(r => r?.data ?? r));
   }
 
-  // 🔧 Chuẩn hoá về {items,total,page,size} dù BE trả Page<...> hay PageDto
   list(params: MovementSearchParams): Observable<PageResponse<InventoryMovement>> {
     const q: any = { page: params.page ?? 0, size: params.size ?? 20 };
     if (params.productId) q.productId = params.productId;
@@ -45,6 +39,10 @@ export class InventoryService {
         return { items, total, page, size } as PageResponse<InventoryMovement>;
       })
     );
+  }
+
+  reverse(id: number): Observable<InventoryMovement> {
+    return this.api.post<any>(`/api/inventory/movements/${id}/reverse`, {}).pipe(map(r => r?.data ?? r));
   }
 
   delete(id: number): Observable<void> {

@@ -45,7 +45,7 @@ import { FlashSaleAdminListItem } from '../../../core/models/flash-sale.model';
       <table class="min-w-[860px] w-full text-[15px]">
         <thead class="bg-slate-50 text-slate-600">
           <tr>
-            <th class="sticky-th text-left font-semibold px-4 py-3 w-[56px]">#</th>
+            <th class="sticky-th text-left font-semibold px-4 py-3 w-[56px]">ID</th>
             <th class="sticky-th text-left font-semibold px-3 py-3 w-[320px]">Tên</th>
             <th class="sticky-th text-left font-semibold px-3 py-3 w-[220px]">Slug</th>
             <th class="sticky-th text-right font-semibold px-3 py-3 w-[110px]">Giảm</th>

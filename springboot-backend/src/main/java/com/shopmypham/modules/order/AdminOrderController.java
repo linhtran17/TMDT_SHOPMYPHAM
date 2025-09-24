@@ -9,6 +9,7 @@ import com.shopmypham.modules.inventory.InventoryReason;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -43,14 +44,20 @@ public class AdminOrderController {
   }
 
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:update')")
+  @Transactional
   @PatchMapping("/{id}/status")
   public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestParam String toStatus){
-    var od = orderRepo.findById(id).orElseThrow(() -> new NotFoundException("Order không tồn tại"));
+    var od  = orderRepo.findById(id).orElseThrow(() -> new NotFoundException("Order không tồn tại"));
     var from = od.getStatus();
-    var to = OrderStatus.valueOf(toStatus);
+    var to   = OrderStatus.valueOf(toStatus);
 
-    // Nếu hủy: hoàn kho + trả lượt coupon
+    // ❗ Chặn huỷ nếu đã/đang giao
     if (to == OrderStatus.cancelled && from != OrderStatus.cancelled) {
+      if (from == OrderStatus.shipped || from == OrderStatus.delivered) {
+        throw new IllegalStateException("Đơn đã/đang giao — không thể huỷ. Hãy tạo phiếu hoàn hàng.");
+      }
+
+      // hoàn kho
       var items = itemRepo.findByOrderIdOrderByIdAsc(id);
       for (var oi : items){
         var m = new InventoryMovement();
@@ -59,23 +66,26 @@ public class AdminOrderController {
         m.setChangeQty(+oi.getQuantity());
         m.setReason(InventoryReason.cancel);
         m.setRefId(id);
+        m.setLocked(true); // hệ thống
         invRepo.save(m);
       }
       couponService.releaseUsageByOrderId(id);
     }
 
-    // ✅ COD: đánh dấu đã thanh toán khi đã qua các mốc xác nhận/trong tiến trình giao
+    // COD: coi như đã thanh toán khi qua các mốc giao
     if ("COD".equalsIgnoreCase(od.getPaymentMethod())
         && to != OrderStatus.cancelled
-        && (to == OrderStatus.confirmed
-            || to == OrderStatus.processing
-            || to == OrderStatus.shipped
-            || to == OrderStatus.delivered)) {
+        && (to == OrderStatus.confirmed || to == OrderStatus.processing || to == OrderStatus.shipped || to == OrderStatus.delivered)) {
       od.setPaymentStatus(PaymentStatus.paid);
     }
 
     od.setStatus(to);
     orderRepo.save(od);
+
+    // Khoá các dòng xuất kho theo order khi vào mốc cứng
+    if (to == OrderStatus.confirmed || to == OrderStatus.processing || to == OrderStatus.shipped || to == OrderStatus.delivered) {
+      invRepo.lockByOrderId(id);
+    }
 
     var his = new OrderStatusHistory();
     his.setOrderId(id);

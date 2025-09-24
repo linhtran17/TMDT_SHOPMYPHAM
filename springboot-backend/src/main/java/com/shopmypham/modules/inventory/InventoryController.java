@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -19,7 +20,6 @@ public class InventoryController {
 
   private final InventoryService service;
 
-  // ---- STOCK (được whitelist public trong SecurityConfig nếu bạn muốn)
   @GetMapping("/stock/products/{productId}")
   public ApiResponse<Integer> productQty(@PathVariable long productId){
     return ApiResponse.ok(service.productQty(productId));
@@ -30,9 +30,9 @@ public class InventoryController {
     return ApiResponse.ok(service.variantQty(variantId));
   }
 
-  // ---- MOVEMENTS
   @PostMapping("/movements")
   @PreAuthorize("hasAnyAuthority('inventory:write','inventory:create')")
+  @Transactional
   public ApiResponse<MovementDTO> create(@Valid @RequestBody MovementCreateRequest req){
     return ApiResponse.ok(service.create(req));
   }
@@ -53,9 +53,18 @@ public class InventoryController {
     return ApiResponse.ok(service.list(productId, variantId, supplierId, reason, from, to, docNo, page, size));
   }
 
+  @PostMapping("/movements/{id}/reverse")
+  @PreAuthorize("hasAnyAuthority('inventory:write','inventory:delete')")
+  @Transactional
+  public ApiResponse<MovementDTO> reverse(@PathVariable long id){
+    return ApiResponse.ok(service.reverse(id));
+  }
+
   @DeleteMapping("/movements/{id}")
   @PreAuthorize("hasAuthority('inventory:delete')")
+  @Transactional
   public ApiResponse<Void> delete(@PathVariable long id){
-    service.delete(id); return ApiResponse.ok();
+    service.softDelete(id);
+    return ApiResponse.ok();
   }
 }

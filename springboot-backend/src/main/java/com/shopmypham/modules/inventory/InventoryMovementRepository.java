@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/modules/inventory/InventoryMovementRepository.java
 package com.shopmypham.modules.inventory;
 
 import org.springframework.data.domain.Page;
@@ -11,16 +10,17 @@ import java.util.List;
 
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, Long> {
 
-  @Query("select coalesce(sum(m.changeQty),0) from InventoryMovement m where m.productId=:pid and m.variantId is null")
+  // tồn kho (bỏ qua dòng đã soft-delete)
+  @Query("select coalesce(sum(m.changeQty),0) from InventoryMovement m where m.deletedAt is null and m.productId=:pid and m.variantId is null")
   Integer productQty(@Param("pid") Long productId);
 
-  @Query("select coalesce(sum(m.changeQty),0) from InventoryMovement m where m.variantId=:vid")
+  @Query("select coalesce(sum(m.changeQty),0) from InventoryMovement m where m.deletedAt is null and m.variantId=:vid")
   Integer variantQty(@Param("vid") Long variantId);
 
   @Query("""
     select m.productId as productId, sum(m.changeQty) as qty
     from InventoryMovement m
-    where m.productId in :ids and m.variantId is null
+    where m.deletedAt is null and m.productId in :ids and m.variantId is null
     group by m.productId
   """)
   List<ProductStockRow> findProductStock(@Param("ids") List<Long> productIds);
@@ -29,7 +29,7 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
   @Query("""
     select m.variantId as variantId, sum(m.changeQty) as qty
     from InventoryMovement m
-    where m.variantId in :ids
+    where m.deletedAt is null and m.variantId in :ids
     group by m.variantId
   """)
   List<VariantStockRow> findVariantStock(@Param("ids") List<Long> variantIds);
@@ -38,9 +38,13 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
   boolean existsByProductId(Long productId);
   boolean existsByVariantId(Long variantId);
 
+  // đã có bút toán đối ứng cho id này chưa?
+  boolean existsByReversedOfId(Long id);
+
   @Query("""
     select m from InventoryMovement m
-    where (:productId is null or m.productId = :productId)
+    where m.deletedAt is null
+      and (:productId is null or m.productId = :productId)
       and (:variantId is null or m.variantId = :variantId)
       and (:supplierId is null or m.supplierId = :supplierId)
       and (:reason is null or m.reason = :reason)
@@ -59,15 +63,14 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
       Pageable pageable
   );
 
-  /* =========================
-     Analytics: Low stock
-     ========================= */
-  // Trả về [product_id, name, sku, stock]
+  // Low-stock
   @Query(value = """
     SELECT p.id, p.name, p.sku, COALESCE(SUM(m.change_qty),0) AS stock
     FROM products p
     LEFT JOIN inventory_movements m
-      ON m.product_id = p.id AND m.variant_id IS NULL
+      ON m.product_id = p.id
+     AND m.variant_id IS NULL
+     AND m.deleted_at IS NULL
     WHERE p.active = 1
     GROUP BY p.id, p.name, p.sku
     HAVING stock <= :threshold
@@ -75,4 +78,9 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
     LIMIT :limit
   """, nativeQuery = true)
   List<Object[]> findLowStockProducts(@Param("threshold") int threshold, @Param("limit") int limit);
+
+  // Lock các dòng xuất kho theo orderId
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("update InventoryMovement m set m.locked = true where m.deletedAt is null and m.reason='order' and m.refId=:orderId")
+  void lockByOrderId(@Param("orderId") Long orderId);
 }
