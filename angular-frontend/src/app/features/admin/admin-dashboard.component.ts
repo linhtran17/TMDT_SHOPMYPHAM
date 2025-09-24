@@ -53,7 +53,6 @@ Chart.register(...registerables);
     .icon{ @apply inline-flex items-center justify-center w-10 h-10 rounded-xl; }
   `],
   template: `
-  <!-- PAGE HEADER -->
   <div class="card mb-4">
     <div class="card-header">
       <div>
@@ -74,7 +73,6 @@ Chart.register(...registerables);
     </div>
 
     <div class="grid grid-3">
-      <!-- KPI: Orders -->
       <div class="card">
         <div class="flex items-center gap-3">
           <div class="icon bg-rose-100 text-rose-700">📦</div>
@@ -88,28 +86,28 @@ Chart.register(...registerables);
         </div>
       </div>
 
-      <!-- KPI: Revenue -->
       <div class="card">
         <div class="flex items-center gap-3">
           <div class="icon bg-emerald-100 text-emerald-700">💰</div>
           <div>
             <div class="kpi">Tổng doanh thu</div>
             <div class="kpi-value">
-              <ng-container *ngIf="!loading(); else sk2">{{ summary()?.totalRevenue ?? 0 | number:'1.0-0' }}</ng-container>
+              <ng-container *ngIf="!loading(); else sk2">
+                {{ summary()?.totalRevenue ?? 0 | number:'1.0-0' }} đ
+              </ng-container>
             </div>
-            <div class="text-xs muted">Doanh thu paid: {{ summary()?.paidRevenue ?? 0 | number:'1.0-0' }}</div>
+            <div class="text-xs muted">Doanh thu paid: {{ summary()?.paidRevenue ?? 0 | number:'1.0-0' }} đ</div>
           </div>
         </div>
       </div>
 
-      <!-- KPI: AOV -->
       <div class="card">
         <div class="flex items-center gap-3">
           <div class="icon bg-indigo-100 text-indigo-700">📈</div>
           <div>
             <div class="kpi">AOV (giá trị đơn TB)</div>
             <div class="kpi-value">
-              <ng-container *ngIf="!loading(); else sk3">{{ summary()?.aov ?? 0 | number:'1.0-0' }}</ng-container>
+              <ng-container *ngIf="!loading(); else sk3">{{ summary()?.aov ?? 0 | number:'1.0-0' }} đ</ng-container>
             </div>
             <div class="text-xs muted">Sản phẩm đang bán: {{ summary()?.activeProducts ?? 0 | number }}</div>
           </div>
@@ -117,15 +115,12 @@ Chart.register(...registerables);
       </div>
     </div>
 
-    <!-- Skeletons cho KPI -->
     <ng-template #sk1><div class="skeleton w-24 h-6"></div></ng-template>
     <ng-template #sk2><div class="skeleton w-28 h-6"></div></ng-template>
     <ng-template #sk3><div class="skeleton w-20 h-6"></div></ng-template>
   </div>
 
-  <!-- CHARTS -->
   <div class="grid md:grid-cols-[2fr_1fr] gap-4 mb-4">
-    <!-- LINE -->
     <div class="card">
       <div class="section-title">
         <div class="font-semibold">Doanh thu theo ngày</div>
@@ -140,7 +135,6 @@ Chart.register(...registerables);
       <div *ngIf="!loading() && (series()?.length||0)===0" class="text-sm muted mt-2">Chưa có dữ liệu trong khoảng ngày.</div>
     </div>
 
-    <!-- PIE -->
     <div class="card">
       <div class="section-title">
         <div class="font-semibold">Đơn theo trạng thái</div>
@@ -153,9 +147,7 @@ Chart.register(...registerables);
     </div>
   </div>
 
-  <!-- TOP PRODUCTS + LOW STOCK -->
   <div class="grid md:grid-cols-2 gap-4 mb-4">
-    <!-- TOP PRODUCTS -->
     <div class="card">
       <div class="section-title">
         <div class="font-semibold">Top sản phẩm (Top {{ topLimit }})</div>
@@ -181,7 +173,7 @@ Chart.register(...registerables);
                 <div class="text-xs muted">#{{ p.sku }}</div>
               </td>
               <td class="text-right">{{ p.qty | number }}</td>
-              <td class="text-right">{{ p.revenue | number:'1.0-0' }}</td>
+              <td class="text-right">{{ p.revenue | number:'1.0-0' }} đ</td>
             </tr>
           </tbody>
         </table>
@@ -191,7 +183,6 @@ Chart.register(...registerables);
       </ng-template>
     </div>
 
-    <!-- LOW STOCK -->
     <div class="card">
       <div class="section-title">
         <div class="font-semibold">Hàng sắp hết (≤ {{ lowThreshold }})</div>
@@ -223,9 +214,7 @@ Chart.register(...registerables);
     </div>
   </div>
 
-  <!-- COUPON / CUSTOMERS -->
   <div class="grid md:grid-cols-2 gap-4">
-    <!-- COUPON -->
     <div class="card">
       <div class="font-semibold mb-2">Sử dụng mã giảm giá</div>
       <ng-container *ngIf="!loading() && (couponUsage()?.length || 0) > 0; else noCoupon">
@@ -242,8 +231,8 @@ Chart.register(...registerables);
           <tr *ngFor="let c of couponUsage()">
             <td><span class="badge">{{ c.code }}</span></td>
             <td class="text-right">{{ c.usageCount | number }}</td>
-            <td class="text-right">{{ c.totalDiscount | number:'1.0-0' }}</td>
-            <td class="text-right">{{ c.impactedRevenue | number:'1.0-0' }}</td>
+            <td class="text-right">{{ c.totalDiscount | number:'1.0-0' }} đ</td>
+            <td class="text-right">{{ c.impactedRevenue | number:'1.0-0' }} đ</td>
           </tr>
           </tbody>
         </table>
@@ -253,7 +242,6 @@ Chart.register(...registerables);
       </ng-template>
     </div>
 
-    <!-- CUSTOMERS -->
     <div class="card">
       <div class="font-semibold mb-2">Khách hàng</div>
       <div class="grid grid-cols-2 gap-2 mb-2">
@@ -293,15 +281,15 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   private lineChart?: Chart;
   private pieChart?:  Chart;
 
-  // Filters
-  from = this.isoDate(offsetDays(-30));
-  to   = this.isoDate(new Date());
+  // ====== FIX: lấy ngày LOCAL, không dùng toISOString() ======
+  from = toLocalISODate(offsetDaysLocal(-30));
+  to   = toLocalISODate(new Date());
+
   topLimit = 10;
   lowThreshold = 5;
 
-  // State
   loading = signal<boolean>(true);
-  smooth  = signal<boolean>(true); // bật/tắt cảm giác “mượt” của line chart
+  smooth  = signal<boolean>(true);
 
   summary      = signal<SummaryResponse | null>(null);
   series       = signal<DayPoint[]>([]);
@@ -312,7 +300,6 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
 
   constructor() {
     this.reload();
-    // Update chart khi data đổi
     effect(() => this.renderLineChart(this.series()));
     effect(() => this.renderPieChart(this.summary()?.byStatus ?? []));
   }
@@ -327,28 +314,26 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.pieChart?.destroy();
   }
 
-  /** Validate khoảng ngày rồi reload */
   apply() {
     if (this.from && this.to && this.from > this.to) [this.from, this.to] = [this.to, this.from];
     this.reload();
   }
 
   quick(days: '7'|'30'|'90') {
-    this.from = this.isoDate(offsetDays(-Number(days)));
-    this.to   = this.isoDate(new Date());
+    this.from = toLocalISODate(offsetDaysLocal(-Number(days)));
+    this.to   = toLocalISODate(new Date());
     this.reload();
   }
 
   toggleSmooth() {
     this.smooth.set(!this.smooth());
-    this.renderLineChart(this.series()); // vẽ lại với tension mới
+    this.renderLineChart(this.series());
   }
 
   reload() {
     this.loading.set(true);
     const from = this.from, to = this.to;
 
-    // Gọi song song – khi cái cuối cùng trả về thì tắt loading
     let remaining = 6;
     const done = () => { remaining--; if (remaining === 0) this.loading.set(false); };
 
@@ -360,23 +345,23 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.api.customersOverview(from, to).subscribe({ next: r => this.customers.set(r), complete: done, error: done });
   }
 
-  /** Line: doanh thu & đơn theo ngày */
   private renderLineChart(data: DayPoint[]) {
     if (!this.lineCanvas) return;
 
     const arr = Array.isArray(data) ? data : [];
-    const labels  = arr.map(d => d.date);
+    // ====== UI: hiển thị nhãn ngày theo vi-VN ======
+    const df = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' });
+    const labels  = arr.map(d => df.format(new Date(d.date + 'T00:00:00'))); // d.date = yyyy-MM-dd
     const revenue = arr.map(d => Number(d.revenue));
     const orders  = arr.map(d => Number(d.orders));
 
-    // gradient nền đẹp mắt
     const ctx = this.lineCanvas.nativeElement.getContext('2d')!;
     const grad1 = ctx.createLinearGradient(0, 0, 0, 320);
-    grad1.addColorStop(0, 'rgba(79, 70, 229, 0.25)'); // indigo
+    grad1.addColorStop(0, 'rgba(79, 70, 229, 0.25)');
     grad1.addColorStop(1, 'rgba(79, 70, 229, 0.00)');
 
     const grad2 = ctx.createLinearGradient(0, 0, 0, 320);
-    grad2.addColorStop(0, 'rgba(16, 185, 129, 0.25)'); // emerald
+    grad2.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
     grad2.addColorStop(1, 'rgba(16, 185, 129, 0.00)');
 
     this.lineChart?.destroy();
@@ -387,7 +372,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
         labels,
         datasets: [
           {
-            label: 'Doanh thu',
+            label: 'Doanh thu (đ)',
             data: revenue,
             borderColor: '#4f46e5',
             backgroundColor: grad1,
@@ -397,7 +382,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
             tension: this.smooth() ? 0.35 : 0
           },
           {
-            label: 'Đơn hàng',
+            label: 'Số đơn',
             data: orders,
             borderColor: '#10b981',
             backgroundColor: grad2,
@@ -416,7 +401,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
           x: { ticks: { maxRotation: 0, autoSkip: true } },
           y: {
             beginAtZero: true,
-            grid: { color: 'rgba(148,163,184,0.2)' } // slate-400/20
+            grid: { color: 'rgba(148,163,184,0.2)' }
           }
         },
         plugins: {
@@ -426,7 +411,6 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
               label(ctx) {
                 const v = ctx.parsed.y ?? 0;
                 const name = ctx.dataset.label || '';
-                // Định dạng gọn gàng
                 return `${name}: ${new Intl.NumberFormat('vi-VN').format(v)}`;
               }
             }
@@ -438,7 +422,6 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.lineChart = new Chart(ctx, cfg);
   }
 
-  /** Doughnut: đơn theo trạng thái (kèm % ở tooltip + tổng ở giữa) */
   private renderPieChart(byStatus: [string, number][]) {
     if (!this.pieCanvas) return;
 
@@ -449,7 +432,6 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
 
     this.pieChart?.destroy();
 
-    // Plugin nhỏ in tổng vào giữa
     const centerTextPlugin = {
       id: 'centerText',
       afterDraw: (chart: Chart) => {
@@ -458,7 +440,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
         ctx.save();
         const cx = (chartArea.left + chartArea.right) / 2;
         const cy = (chartArea.top + chartArea.bottom) / 2;
-        ctx.fillStyle = '#0f172a'; // slate-900
+        ctx.fillStyle = '#0f172a';
         ctx.font = '600 16px ui-sans-serif, system-ui';
         ctx.textAlign = 'center';
         ctx.fillText(total.toString(), cx, cy + 6);
@@ -499,11 +481,17 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
       plugins: [centerTextPlugin]
     });
   }
-
-  private isoDate(d: Date): string { return d.toISOString().slice(0,10); }
 }
 
-function offsetDays(days: number): Date {
+/** ===== Helpers: ngày LOCAL chuẩn yyyy-MM-dd ===== */
+function toLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function offsetDaysLocal(days: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d;

@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 export interface ApiResponse<T> { success: boolean; message?: string | null; data: T; timestamp?: string; }
 
@@ -27,11 +28,14 @@ export interface CustomersOverview {
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   private http = inject(HttpClient);
-  private base = '/api/admin/analytics';
+  // ===== đồng nhất với các service khác =====
+  private base = `${environment.apiBase}/api/admin/analytics`;
 
   private params(q: Record<string, any>): HttpParams {
     let p = new HttpParams();
-    for (const [k, v] of Object.entries(q)) if (v !== null && v !== undefined && v !== '') p = p.set(k, String(v));
+    for (const [k, v] of Object.entries(q)) {
+      if (v !== null && v !== undefined && v !== '') p = p.set(k, String(v));
+    }
     return p;
   }
 

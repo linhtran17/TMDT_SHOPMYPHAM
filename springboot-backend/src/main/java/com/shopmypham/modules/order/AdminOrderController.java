@@ -2,7 +2,7 @@ package com.shopmypham.modules.order;
 
 import com.shopmypham.core.api.ApiResponse;
 import com.shopmypham.core.exception.NotFoundException;
-import com.shopmypham.modules.coupon.CouponService;          // 👈 NEW
+import com.shopmypham.modules.coupon.CouponService;
 import com.shopmypham.modules.inventory.InventoryMovement;
 import com.shopmypham.modules.inventory.InventoryMovementRepository;
 import com.shopmypham.modules.inventory.InventoryReason;
@@ -22,7 +22,7 @@ public class AdminOrderController {
   private final OrderItemRepository itemRepo;
   private final OrderStatusHistoryRepository hisRepo;
   private final InventoryMovementRepository invRepo;
-  private final CouponService couponService;                 // 👈 NEW
+  private final CouponService couponService;
 
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:read')")
   @GetMapping
@@ -35,9 +35,9 @@ public class AdminOrderController {
       @RequestParam(defaultValue = "20") int size
   ){
     Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "id"));
-    OrderStatus st = (status==null || status.isBlank()) ? null : OrderStatus.valueOf(status);
-    LocalDateTime t1 = (from==null || from.isBlank()) ? null : LocalDateTime.parse(from);
-    LocalDateTime t2 = (to==null || to.isBlank()) ? null : LocalDateTime.parse(to);
+    OrderStatus st = (status == null || status.isBlank()) ? null : OrderStatus.valueOf(status);
+    LocalDateTime t1 = (from == null || from.isBlank()) ? null : LocalDateTime.parse(from);
+    LocalDateTime t2 = (to == null || to.isBlank()) ? null : LocalDateTime.parse(to);
     Page<Order> p = orderRepo.search(q, st, t1, t2, pageable);
     return ApiResponse.ok(p);
   }
@@ -49,8 +49,8 @@ public class AdminOrderController {
     var from = od.getStatus();
     var to = OrderStatus.valueOf(toStatus);
 
+    // Nếu hủy: hoàn kho + trả lượt coupon
     if (to == OrderStatus.cancelled && from != OrderStatus.cancelled) {
-      // 1) hoàn kho
       var items = itemRepo.findByOrderIdOrderByIdAsc(id);
       for (var oi : items){
         var m = new InventoryMovement();
@@ -61,8 +61,17 @@ public class AdminOrderController {
         m.setRefId(id);
         invRepo.save(m);
       }
-      // 2) trả lượt coupon
-      couponService.releaseUsageByOrderId(id);              // 👈 NEW
+      couponService.releaseUsageByOrderId(id);
+    }
+
+    // ✅ COD: đánh dấu đã thanh toán khi đã qua các mốc xác nhận/trong tiến trình giao
+    if ("COD".equalsIgnoreCase(od.getPaymentMethod())
+        && to != OrderStatus.cancelled
+        && (to == OrderStatus.confirmed
+            || to == OrderStatus.processing
+            || to == OrderStatus.shipped
+            || to == OrderStatus.delivered)) {
+      od.setPaymentStatus(PaymentStatus.paid);
     }
 
     od.setStatus(to);

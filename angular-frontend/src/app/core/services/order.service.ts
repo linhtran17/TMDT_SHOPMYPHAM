@@ -1,3 +1,4 @@
+// src/app/core/services/order.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
@@ -7,7 +8,7 @@ import { Observable, map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {
-  private base = environment.apiBase;
+  private base = environment.apiBase?.replace(/\/+$/,'') || '';
 
   constructor(private http: HttpClient) {}
 
@@ -23,34 +24,20 @@ export class OrderService {
       .pipe(map(r => r.data));
   }
 
-  /** Chuẩn hoá về PageResponse cho FE, dù BE trả kiểu nào */
   private normalizePage<T>(raw: any): PageResponse<T> {
-    // Kiểu custom {items,total,page,size}
     if (raw && Array.isArray(raw.items)) {
-      return {
-        items: raw.items,
-        total: Number(raw.total ?? 0),
-        page: Number(raw.page ?? 0),
-        size: Number(raw.size ?? raw.items.length ?? 0),
-      };
+      return { items: raw.items, total: Number(raw.total ?? 0), page: Number(raw.page ?? 0), size: Number(raw.size ?? raw.items.length ?? 0) };
     }
-    // Kiểu Spring Page
     if (raw && Array.isArray(raw.content)) {
       const size = Number(raw.size ?? raw.content.length ?? 0);
       const number = Number(raw.number ?? 0);
       const totalElements = Number(raw.totalElements ?? 0);
-      return {
-        items: raw.content,
-        total: totalElements,
-        page: number,
-        size,
-      };
+      return { items: raw.content, total: totalElements, page: number, size };
     }
-    // Fallback rỗng
     return { items: [], total: 0, page: 0, size: 0 };
-    }
+  }
 
-  /** Admin search/list */
+  /** Admin: search/list */
   listAdmin(params: { q?: string; status?: string; from?: string; to?: string; page?: number; size?: number; }): Observable<PageResponse<Order>> {
     let p = new HttpParams();
     if (params.q) p = p.set('q', params.q);
@@ -62,24 +49,26 @@ export class OrderService {
 
     return this.http
       .get<ApiResponse<any> | any>(`${this.base}/api/admin/orders`, { params: p })
-      .pipe(
-        map(r => ('data' in r ? r.data : r)),
-        map(data => this.normalizePage<Order>(data))
-      );
+      .pipe(map(r => ('data' in r ? r.data : r)), map(data => this.normalizePage<Order>(data)));
   }
 
-  /** Đơn của user đăng nhập */
+  /** Đơn của user */
   listMine(page = 0, size = 20): Observable<PageResponse<Order>> {
     const params = new HttpParams().set('page', page).set('size', size);
     return this.http
       .get<ApiResponse<any> | any>(`${this.base}/api/orders/me`, { params })
-      .pipe(
-        map(r => ('data' in r ? r.data : r)),
-        map(data => this.normalizePage<Order>(data))
-      );
+      .pipe(map(r => ('data' in r ? r.data : r)), map(data => this.normalizePage<Order>(data)));
   }
 
-  /** Tạo giao dịch COD */
+  /** Đổi trạng thái đơn (Admin) */
+  changeStatus(id: number, toStatus: string): Observable<void> {
+    const params = new HttpParams().set('toStatus', toStatus);
+    return this.http
+      .patch<ApiResponse<void>>(`${this.base}/api/admin/orders/${id}/status`, null, { params })
+      .pipe(map(r => r.data));
+  }
+
+  /** Giao dịch COD (khởi tạo) */
   cod(orderId: number): Observable<void> {
     return this.http
       .post<ApiResponse<void>>(`${this.base}/api/payments/cod/${orderId}`, {})

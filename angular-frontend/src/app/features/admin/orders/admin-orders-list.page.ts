@@ -1,3 +1,4 @@
+// src/app/features/admin/orders/admin-orders-list.page.ts
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -135,14 +136,9 @@ export class AdminOrdersListPageComponent {
     const to = this.nextStatusMap[o.id];
     if (!to || to === o.status) return;
 
-    fetch(`/api/admin/orders/${o.id}/status?toStatus=${to}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: {
-        'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : ''
-      }
-    })
-    .then(() => this.load())
-    .catch(() => alert('Không đổi được trạng thái'));
+    this.api.changeStatus(o.id, to).subscribe({
+      next: () => this.load(),
+      error: () => alert('Không đổi được trạng thái'),
+    });
   }
 }
