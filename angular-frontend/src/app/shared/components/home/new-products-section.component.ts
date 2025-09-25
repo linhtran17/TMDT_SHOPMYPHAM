@@ -55,15 +55,15 @@ export class NewProductsSectionComponent implements OnInit {
 
   // ✅ luôn gắn badge 'HOT' cho đẹp
   cards = computed<ProductCardData[]>(() => (this._items() || []).map(p => ({
-    id: p.id,
-    name: p.name,
-    price: this.basePrice(p),
-    salePrice: this.salePrice(p),
-    images: (p.images||[]).filter(i => !i.variantId).map(i => i.url),
-    inStock: this.stock(p) > 0,
-    badge: 'HOT',
-  })));
-
+  id: p.id,
+  name: p.name,
+  price: this.basePrice(p),
+  salePrice: this.salePrice(p),
+  images: (p.images || []).filter(i => !i.variantId).map(i => i.url),
+  stock: this.stock(p),          // <--- THÊM DÒNG NÀY
+  inStock: this.stock(p) > 0,    // có thể giữ để disable nút
+  badge: 'HOT',
+})));
   ngOnInit(): void {
     this.products.search({ page: 0, size: 48 } as any).subscribe({
       next: (pg: PageAny<ProductResponse>) => {

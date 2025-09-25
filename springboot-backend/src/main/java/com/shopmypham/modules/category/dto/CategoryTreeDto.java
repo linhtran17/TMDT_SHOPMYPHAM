@@ -11,6 +11,7 @@ public class CategoryTreeDto {
   private String name;
   private String slug;
   private Long parentId;
+   private String imageUrl;
   @Builder.Default
   private List<CategoryTreeDto> children = new ArrayList<>();
 }

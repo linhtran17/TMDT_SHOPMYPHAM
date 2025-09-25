@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/modules/analytics/AnalyticsService.java
 package com.shopmypham.modules.analytics;
 
 import com.shopmypham.modules.order.OrderRepository;
@@ -10,8 +9,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.util.*;
 
 @Service
@@ -23,31 +21,38 @@ public class AnalyticsService {
   private final ProductRepository productRepo;
   private final CouponUsageRepository couponUsageRepo;
 
+  private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
   public static record DayPoint(LocalDate date, BigDecimal revenue, long orders) {}
   public static record TopProductRow(Long productId, String name, String sku, long qty, BigDecimal revenue) {}
   public static record CouponUsageRow(String code, long usageCount, BigDecimal totalDiscount, BigDecimal impactedRevenue) {}
   public static record LowStockRow(Long productId, String name, String sku, int stock) {}
 
+  private static Instant startOf(LocalDate d) {
+    return d.atStartOfDay(ZONE).toInstant();
+  }
+
+  private static Instant endExclusive(LocalDate d) {
+    return d.plusDays(1).atStartOfDay(ZONE).toInstant();
+  }
+
+  /* ========= SUMMARY ========= */
   @Cacheable(cacheNames = "analytics.summary",
       key = "#from.toString().concat(':').concat(#to.toString())",
       unless = "#result == null")
-  public Map<String, Object> summary(LocalDateTime from, LocalDateTime to) {
+  public Map<String, Object> summary(Instant from, Instant to) {
     var m = new LinkedHashMap<String, Object>();
 
-    // ==== FIX: unwrap an toàn kết quả sumKpi (Object[] | List<Object[]> | Object[][]) ====
     Object raw = orderRepo.sumKpi(from, to);
 
     Object[] row;
     if (raw == null) {
       row = new Object[]{0, BigDecimal.ZERO, 0, BigDecimal.ZERO};
     } else if (raw instanceof Object[] a && !(a.length > 0 && a[0] instanceof Object[])) {
-      // Trường hợp đúng chuẩn: 4 cột trong 1 mảng
       row = a;
     } else if (raw instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Object[] a) {
-      // Trường hợp trả về List<Object[]> (1 hàng)
       row = a;
     } else if (raw instanceof Object[] a && a.length == 1 && a[0] instanceof Object[] inner) {
-      // Trường hợp Object[][] (mảng chứa 1 mảng hàng)
       row = inner;
     } else {
       throw new IllegalStateException("Unexpected KPI result type: " + raw.getClass());
@@ -72,11 +77,12 @@ public class AnalyticsService {
     return m;
   }
 
+  /* ========= SALES SERIES ========= */
   @Cacheable(cacheNames = "analytics.salesSeries",
       key = "#from.toString().concat(':').concat(#to.toString())",
       unless = "#result == null")
   public List<DayPoint> salesSeries(LocalDate from, LocalDate to) {
-    var rows = orderRepo.revenueByDay(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    var rows = orderRepo.revenueByDay(startOf(from), endExclusive(to));
     Map<LocalDate, DayPoint> map = new LinkedHashMap<>();
     LocalDate d = from;
     while (!d.isAfter(to)) {
@@ -92,11 +98,12 @@ public class AnalyticsService {
     return new ArrayList<>(map.values());
   }
 
+  /* ========= TOP PRODUCTS ========= */
   @Cacheable(cacheNames = "analytics.topProducts",
       key = "#from.toString().concat(':').concat(#to.toString()).concat(':').concat(String.valueOf(#categoryId)).concat(':').concat(String.valueOf(#limit))",
       unless = "#result == null")
   public List<TopProductRow> topProducts(LocalDate from, LocalDate to, Long categoryId, int limit) {
-    var rows = orderRepo.topProducts(from.atStartOfDay(), to.plusDays(1).atStartOfDay(), categoryId, limit);
+    var rows = orderRepo.topProducts(startOf(from), endExclusive(to), categoryId, limit);
     var list = new ArrayList<TopProductRow>(rows.size());
     for (Object[] r : rows) {
       list.add(new TopProductRow(
@@ -110,11 +117,16 @@ public class AnalyticsService {
     return list;
   }
 
+  /* ========= COUPON USAGE =========
+     (giữ LocalDateTime nếu repository coupon đang nhận LDT) */
   @Cacheable(cacheNames = "analytics.couponUsage",
       key = "#from.toString().concat(':').concat(#to.toString())",
       unless = "#result == null")
   public List<CouponUsageRow> couponUsage(LocalDate from, LocalDate to) {
-    var rows = couponUsageRepo.aggCouponUsage(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    var rows = couponUsageRepo.aggCouponUsage(
+        from.atStartOfDay(),           // nếu repo của bạn đổi sang Instant, convert tương tự như order
+        to.plusDays(1).atStartOfDay()
+    );
     var list = new ArrayList<CouponUsageRow>(rows.size());
     for (Object[] r : rows) {
       list.add(new CouponUsageRow(
@@ -127,6 +139,7 @@ public class AnalyticsService {
     return list;
   }
 
+  /* ========= LOW STOCK ========= */
   @Cacheable(cacheNames = "analytics.lowStock",
       key = "#threshold.toString().concat(':').concat(String.valueOf(#limit))",
       unless = "#result == null")
@@ -144,10 +157,11 @@ public class AnalyticsService {
     return list;
   }
 
+  /* ========= CUSTOMERS OVERVIEW ========= */
   @Cacheable(cacheNames = "analytics.customersOverview",
       key = "#from.toString().concat(':').concat(#to.toString())",
       unless = "#result == null")
-  public Map<String, Object> customersOverview(LocalDateTime from, LocalDateTime to) {
+  public Map<String, Object> customersOverview(Instant from, Instant to) {
     var m = new LinkedHashMap<String, Object>();
     m.put("uniqueCustomers", orderRepo.countDistinctCustomers(from, to));
     m.put("repeatRate", Optional.ofNullable(orderRepo.repeatCustomerRate(from, to)).orElse(0.0d));
@@ -155,6 +169,7 @@ public class AnalyticsService {
     return m;
   }
 
+  /* ===== helpers ===== */
   private long toLong(Object o) {
     if (o == null) return 0L;
     if (o instanceof Number n) return n.longValue();

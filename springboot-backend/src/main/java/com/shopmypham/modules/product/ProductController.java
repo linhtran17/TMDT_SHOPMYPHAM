@@ -1,4 +1,3 @@
-// ProductController.java
 package com.shopmypham.modules.product;
 
 import com.shopmypham.core.api.ApiResponse;
@@ -8,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 import java.util.Map;
 
@@ -15,17 +15,20 @@ import java.util.Map;
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
 public class ProductController {
+
   private final ProductService service;
 
-  // ===== CRUD Product =====
+  // ===== Search / Get =====
   @GetMapping
   public ApiResponse<PageResponse<ProductResponse>> search(
       @RequestParam(required = false) String q,
-      @RequestParam(required = false) Long categoryId,
+      @RequestParam(required = false) Long categoryId,     // id danh mục (cha hoặc con)
+      @RequestParam(required = false, name = "cat") String catSlug, // slug danh mục (cha hoặc con)
+      @RequestParam(required = false) List<Long> childIds, // nếu truyền -> chỉ lọc các con này
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "12") int size
   ) {
-    return ApiResponse.ok(service.search(q, categoryId, page, size));
+    return ApiResponse.ok(service.search(q, categoryId, catSlug, childIds, page, size));
   }
 
   @GetMapping("/{id}")
@@ -33,6 +36,7 @@ public class ProductController {
     return ApiResponse.ok(service.get(id));
   }
 
+  // ===== CRUD Product =====
   @PostMapping
   @PreAuthorize("hasAuthority('product:create')")
   public ApiResponse<Long> create(@Valid @RequestBody ProductRequest req) {
@@ -91,7 +95,7 @@ public class ProductController {
       @PathVariable Long id,
       @RequestBody List<@Valid VariantUpsertDto> body
   ){
-    return ApiResponse.ok(service.upsertVariants(id, body)); // trả về list đã có ID
+    return ApiResponse.ok(service.upsertVariants(id, body));
   }
 
   // ===== Attributes =====

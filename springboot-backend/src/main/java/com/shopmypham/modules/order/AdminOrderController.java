@@ -1,3 +1,4 @@
+// src/main/java/com/shopmypham/modules/order/AdminOrderController.java
 package com.shopmypham.modules.order;
 
 import com.shopmypham.core.api.ApiResponse;
@@ -12,7 +13,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @RestController
 @RequestMapping("/api/admin/orders")
@@ -25,6 +28,16 @@ public class AdminOrderController {
   private final InventoryMovementRepository invRepo;
   private final CouponService couponService;
 
+  // Chọn timezone để convert LocalDateTime -> Instant (cố định VN cho nhất quán)
+  private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+  private static Instant parseToInstant(String s) {
+    if (s == null || s.isBlank()) return null;
+    // FE gửi kiểu "yyyy-MM-ddTHH:mm" (input datetime-local)
+    LocalDateTime ldt = LocalDateTime.parse(s);
+    return ldt.atZone(ZONE).toInstant();
+  }
+
   @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:read')")
   @GetMapping
   public ApiResponse<Page<Order>> list(
@@ -36,9 +49,15 @@ public class AdminOrderController {
       @RequestParam(defaultValue = "20") int size
   ){
     Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "id"));
+
+    // Enum phía BE của bạn trước giờ dùng lowercase (pending/confirmed/...), FE cũng gửi lowercase => giữ nguyên.
+    // Nếu enum của bạn là UPPERCASE, đổi .toUpperCase() ở đây.
     OrderStatus st = (status == null || status.isBlank()) ? null : OrderStatus.valueOf(status);
-    LocalDateTime t1 = (from == null || from.isBlank()) ? null : LocalDateTime.parse(from);
-    LocalDateTime t2 = (to == null || to.isBlank()) ? null : LocalDateTime.parse(to);
+
+    // đổi about: LocalDateTime -> Instant (khớp repo & entity)
+    Instant t1 = parseToInstant(from);
+    Instant t2 = parseToInstant(to);
+
     Page<Order> p = orderRepo.search(q, st, t1, t2, pageable);
     return ApiResponse.ok(p);
   }
@@ -49,7 +68,7 @@ public class AdminOrderController {
   public ApiResponse<Void> changeStatus(@PathVariable Long id, @RequestParam String toStatus){
     var od  = orderRepo.findById(id).orElseThrow(() -> new NotFoundException("Order không tồn tại"));
     var from = od.getStatus();
-    var to   = OrderStatus.valueOf(toStatus);
+    var to   = OrderStatus.valueOf(toStatus); // FE gửi lowercase trùng enum
 
     // ❗ Chặn huỷ nếu đã/đang giao
     if (to == OrderStatus.cancelled && from != OrderStatus.cancelled) {

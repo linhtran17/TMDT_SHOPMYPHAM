@@ -6,44 +6,46 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-  @Query(
-      value = """
-        SELECT *
-        FROM products p
-        WHERE (:categoryId IS NULL OR p.category_id = :categoryId)
-          AND (
-             :q IS NULL OR :q = ''
-             OR LOWER(p.name) LIKE CONCAT('%', LOWER(:q), '%')
-             OR LOWER(COALESCE(p.sku, '')) LIKE CONCAT('%', LOWER(:q), '%')
-          )
-        ORDER BY p.id DESC
-      """,
-      countQuery = """
-        SELECT COUNT(*)
-        FROM products p
-        WHERE (:categoryId IS NULL OR p.category_id = :categoryId)
-          AND (
-             :q IS NULL OR :q = ''
-             OR LOWER(p.name) LIKE CONCAT('%', LOWER(:q), '%')
-             OR LOWER(COALESCE(p.sku, '')) LIKE CONCAT('%', LOWER(:q), '%')
-          )
-      """,
-      nativeQuery = true)
-  Page<Product> searchNative(@Param("categoryId") Long categoryId,
-                             @Param("q") String q,
-                             Pageable pageable);
+  /**
+   * Tìm kiếm theo từ khóa + nhiều categoryId.
+   * - Khi không lọc danh mục: truyền noCatFilter=true (catIds có thể chứa “giá trị mồi”).
+   * - Khi lọc danh mục: truyền noCatFilter=false và catIds là danh sách id cần lọc.
+   *
+   * JPQL, để tận dụng entity-level cache và portable.
+   */
+  @Query("""
+    SELECT p FROM Product p
+    WHERE
+      (:noCatFilter = true OR p.categoryId IN :catIds)
+      AND (
+           :q IS NULL OR :q = ''
+           OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
+           OR LOWER(COALESCE(p.sku, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+      )
+    ORDER BY p.id DESC
+  """)
+  Page<Product> search(@Param("q") String q,
+                       @Param("catIds") Collection<Long> catIds,
+                       @Param("noCatFilter") boolean noCatFilter,
+                       Pageable pageable);
 
   boolean existsBySku(String sku);
 
-  // ✳️ Dùng trong CategoryService.delete()
+  // Dùng trong CategoryService.delete()
   boolean existsByCategoryId(Long categoryId);
 
-  // ✳️ Dùng trong CategoryService.adminPage() để đếm sản phẩm theo danh mục
-  @Query(value = "SELECT p.category_id, COUNT(p.id) FROM products p WHERE p.category_id IN (:ids) GROUP BY p.category_id", nativeQuery = true)
+  // Dùng cho admin thống kê
+  @Query(value =
+      "SELECT p.category_id, COUNT(p.id) " +
+      "FROM products p " +
+      "WHERE p.category_id IN (:ids) " +
+      "GROUP BY p.category_id",
+      nativeQuery = true)
   List<Object[]> countByCategoryIds(@Param("ids") List<Long> ids);
 }

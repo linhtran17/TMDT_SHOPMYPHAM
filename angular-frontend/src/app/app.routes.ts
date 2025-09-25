@@ -2,9 +2,9 @@ import { Routes } from '@angular/router';
 import { AdminLayoutComponent } from './features/layout/admin/admin-layout.component';
 import { PublicLayoutComponent } from './features/layout/public/public-layout.component';
 
-import { HomePageComponent } from './features/home/home-page.component';
-import { LoginComponent } from './features/auth/login.component';
-import { SignupComponent } from './features/auth/signup.component';
+import { HomePageComponent } from './features/public/home/home-page.component';
+import { LoginComponent } from './features/public/auth/login.component';
+import { SignupComponent } from './features/public/auth/signup.component';
 import { adminGuard } from './core/guards/admin.guard';
 import { authGuard } from './core/guards/auth.guard';
 
@@ -14,34 +14,37 @@ export const routes: Routes = [
     component: PublicLayoutComponent,
     children: [
       { path: '', component: HomePageComponent },
-      { path: 'oauth2/callback', loadComponent: () => import('./features/auth/oauth2-callback.component').then(m => m.Oauth2CallbackComponent) },
+      { path: 'oauth2/callback', loadComponent: () => import('./features/public/auth/oauth2-callback.component').then(m => m.Oauth2CallbackComponent) },
 
-      { path: 'wishlist', loadComponent: () => import('./features/wishlist/my-wishlist.page').then(m => m.default), canActivate: [authGuard] },
+      { path: 'wishlist', loadComponent: () => import('./features/public/wishlist/my-wishlist.page').then(m => m.default), canActivate: [authGuard] },
 
       // Public: Mã giảm giá
-      { path: 'coupons', loadComponent: () => import('./features/coupons/coupons.page').then(m => m.default) },
+      { path: 'coupons', loadComponent: () => import('./features/public/coupons/coupons.page').then(m => m.default) },
 
       // Flash sale
-      { path: 'flash', loadComponent: () => import('./features/flash/flash-deals-all.page').then(m => m.FlashDealsAllPage) },
-      { path: 'flash/:slug', loadComponent: () => import('./features/flash/flash-sale-detail.page').then(m => m.FlashSaleDetailPage) },
+      { path: 'flash', loadComponent: () => import('./features/public/flash/flash-deals-all.page').then(m => m.FlashDealsAllPage) },
+      { path: 'flash/:slug', loadComponent: () => import('./features/public/flash/flash-sale-detail.page').then(m => m.FlashSaleDetailPage) },
 
       // Products
-      { path: 'products', loadComponent: () => import('./features/products/products-list.page').then(m => m.ProductsListPageComponent) },
+      { path: 'products', loadComponent: () => import('./features/public/products/products-list.page').then(m => m.ProductsListPageComponent) },
       { path: 'products/:id', loadComponent: () => import('./shared/components/product-detail-page.component').then(m => m.ProductDetailPageComponent) },
+            
+{ path: 'categories', loadComponent: () => import('./features/public/categories/categories-browse.page').then(m => m.default) },
+
 
       { path: 'login', component: LoginComponent },
       { path: 'signup', component: SignupComponent },
-      { path: 'news', loadComponent: () => import('./features/news/news-list.component').then(m => m.NewsListComponent) },
-      { path: 'news/:slug', loadComponent: () => import('./features/news/news-detail.component').then(m => m.NewsDetailComponent) },
+      { path: 'news', loadComponent: () => import('./features/public/news/news-list.component').then(m => m.NewsListComponent) },
+      { path: 'news/:slug', loadComponent: () => import('./features/public/news/news-detail.component').then(m => m.NewsDetailComponent) },
       { path: 'about', loadComponent: () => import('./shared/components/about/about-page.component').then(m => m.AboutPageComponent) },
-      { path: 'contact', loadComponent: () => import('./features/contact/contact-page.component').then(m => m.ContactPageComponent) },
-      { path: 'orders', loadComponent: () => import('./features/orders/my-orders.page').then(m => m.MyOrdersPage), canActivate: [authGuard] },
-      { path: 'account', loadComponent: () => import('./features/account/account.page').then(m => m.AccountPage) },
+      { path: 'contact', loadComponent: () => import('./features/public/contact/contact-page.component').then(m => m.ContactPageComponent) },
+      { path: 'orders', loadComponent: () => import('./features/public/orders/my-orders.page').then(m => m.MyOrdersPage), canActivate: [authGuard] },
+      { path: 'account', loadComponent: () => import('./features/public/account/account.page').then(m => m.AccountPage) },
 
       // Cần đăng nhập
-      { path: 'cart', loadComponent: () => import('./features/cart/cart.page').then(m => m.CartPage), canActivate: [authGuard] },
-      { path: 'checkout', loadComponent: () => import('./features/checkout/checkout.page').then(m => m.CheckoutPage), canActivate: [authGuard] },
-      { path: 'orders/:id', loadComponent: () => import('./features/orders/order-detail.page').then(m => m.OrderDetailPage), canActivate: [authGuard] },
+      { path: 'cart', loadComponent: () => import('./features/public/cart/cart.page').then(m => m.CartPage), canActivate: [authGuard] },
+      { path: 'checkout', loadComponent: () => import('./features/public/checkout/checkout.page').then(m => m.CheckoutPage), canActivate: [authGuard] },
+      { path: 'orders/:id', loadComponent: () => import('./features/public/orders/order-detail.page').then(m => m.OrderDetailPage), canActivate: [authGuard] },
     ],
   },
 

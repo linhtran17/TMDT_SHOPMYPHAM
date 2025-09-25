@@ -39,13 +39,22 @@ public class CategoryService {
 
   @Transactional(readOnly = true)
   public List<CategoryTreeDto> tree() {
-    List<Category> all = categoryRepo.findAll(Sort.by("name").ascending());
+    // sort theo sortOrder rồi name để trả đúng thứ tự hiển thị
+    List<Category> all = categoryRepo.findAll(
+        Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("name"))
+    );
     Map<Long, CategoryTreeDto> map = new LinkedHashMap<>();
     List<CategoryTreeDto> roots = new ArrayList<>();
+
     for (Category c : all) {
       map.put(c.getId(), CategoryTreeDto.builder()
-          .id(c.getId()).name(c.getName()).slug(c.getSlug()).parentId(c.getParentId())
-          .children(new ArrayList<>()).build());
+          .id(c.getId())
+          .name(c.getName())
+          .slug(c.getSlug())
+          .parentId(c.getParentId())
+          .imageUrl(c.getImageUrl())                 // <-- map imageUrl
+          .children(new ArrayList<>())
+          .build());
     }
     for (Category c : all) {
       CategoryTreeDto node = map.get(c.getId());
@@ -58,6 +67,7 @@ public class CategoryService {
     sortRecursive(roots);
     return roots;
   }
+
   private void sortRecursive(List<CategoryTreeDto> list) {
     list.sort(Comparator.comparing(CategoryTreeDto::getName, String.CASE_INSENSITIVE_ORDER));
     for (CategoryTreeDto x : list) sortRecursive(x.getChildren());
@@ -68,7 +78,6 @@ public class CategoryService {
   public PageResponse<CategoryAdminRowDto> adminPage(
       String q, String type, Boolean active, Long parentId, int page, int size
   ) {
-    // sort ổn định giống UI: sort_order asc, name asc
     var sort = Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("name"));
     var all = categoryRepo.findAll(sort);
 
@@ -88,18 +97,17 @@ public class CategoryService {
     var slice = filtered.subList(from, to);
     var ids = slice.stream().map(Category::getId).toList();
 
-    // đếm con & sản phẩm cho các id trong trang hiện tại
     Map<Long, Long> childCnt = new HashMap<>();
     if (!ids.isEmpty()) {
       for (Object[] row : categoryRepo.countChildrenByParentIds(ids)) {
-        childCnt.put((Long) row[0], (Long) row[1]); // key = parent_id
+        childCnt.put((Long) row[0], (Long) row[1]);
       }
     }
 
     Map<Long, Long> prodCnt = new HashMap<>();
     if (!ids.isEmpty()) {
       for (Object[] row : productRepo.countByCategoryIds(ids)) {
-        prodCnt.put((Long) row[0], (Long) row[1]); // key = category_id
+        prodCnt.put((Long) row[0], (Long) row[1]);
       }
     }
 
@@ -176,23 +184,16 @@ public class CategoryService {
     categoryRepo.save(c);
   }
 
-@Transactional
-public void delete(Long id) {
-  if (!categoryRepo.existsById(id))
-    throw new NotFoundException("Không tìm thấy danh mục");
-
-  // 1) còn danh mục con?
-  if (categoryRepo.existsByParentId(id))
-    throw new BadRequestException("Danh mục đang có danh mục con, không thể xoá");
-
-  // 2) còn sản phẩm thuộc danh mục?
-  if (productRepo.existsByCategoryId(id))
-    throw new BadRequestException("Danh mục đang có sản phẩm, không thể xoá");
-
-  // 3) ok, xoá
-  categoryRepo.deleteById(id);
-}
-
+  @Transactional
+  public void delete(Long id) {
+    if (!categoryRepo.existsById(id))
+      throw new NotFoundException("Không tìm thấy danh mục");
+    if (categoryRepo.existsByParentId(id))
+      throw new BadRequestException("Danh mục đang có danh mục con, không thể xoá");
+    if (productRepo.existsByCategoryId(id))
+      throw new BadRequestException("Danh mục đang có sản phẩm, không thể xoá");
+    categoryRepo.deleteById(id);
+  }
 
   // ===== helpers =====
   private Category findById(Long id){
@@ -201,7 +202,14 @@ public void delete(Long id) {
 
   private CategoryResponse toDto(Category c) {
     return CategoryResponse.builder()
-        .id(c.getId()).name(c.getName()).slug(c.getSlug()).description(c.getDescription())
+        .id(c.getId())
+        .name(c.getName())
+        .slug(c.getSlug())
+        .description(c.getDescription())
+        .imageUrl(c.getImageUrl())
+        .sortOrder(c.getSortOrder())
+        .active(c.getActive())
+        .parentId(c.getParentId())
         .createdAt(c.getCreatedAt()==null? null : FMT.format(c.getCreatedAt()))
         .updatedAt(c.getUpdatedAt()==null? null : FMT.format(c.getUpdatedAt()))
         .build();

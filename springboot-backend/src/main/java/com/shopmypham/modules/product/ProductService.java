@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopmypham.core.api.PageResponse;
 import com.shopmypham.core.exception.BadRequestException;
 import com.shopmypham.core.exception.NotFoundException;
+import com.shopmypham.modules.category.Category;
 import com.shopmypham.modules.category.CategoryRepository;
 import com.shopmypham.modules.inventory.InventoryMovementRepository;
 import com.shopmypham.modules.product.dto.*;
@@ -32,52 +33,27 @@ public class ProductService {
 
   // ===== Search & Get =====
   @Transactional(readOnly = true)
-  public PageResponse<ProductResponse> search(String q, Long categoryId, int page, int size) {
+  public PageResponse<ProductResponse> search(String q,
+                                              Long categoryId,
+                                              String catSlug,
+                                              List<Long> childIds,
+                                              int page, int size) {
     Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
     String keyword = (q == null || q.isBlank()) ? null : q.trim();
-    Page<Product> p = productRepo.searchNative(categoryId, keyword, pageable);
 
-    if (p.getContent().isEmpty()) {
-      return new PageResponse<>(List.of(), p.getTotalElements(), p.getNumber(), p.getSize());
-    }
+    // Ưu tiên childIds nếu FE truyền; nếu không thì tự mở rộng categoryId/catSlug thành danh sách con cháu
+    List<Long> ids = (childIds != null && !childIds.isEmpty())
+        ? childIds
+        : resolveCategoryIds(categoryId, catSlug);
 
-    // Bulk stock cho products (chỉ cấp product)
-    List<Long> productIds = p.getContent().stream().map(Product::getId).toList();
-    Map<Long, Integer> productQty = invRepo.findProductStock(productIds).stream()
-        .collect(Collectors.toMap(
-            InventoryMovementRepository.ProductStockRow::getProductId,
-            r -> Optional.ofNullable(r.getQty()).orElse(0)
-        ));
+    boolean noCatFilter = (ids == null || ids.isEmpty());
 
-    // Bulk variants của các product
-    var variantsAll = variantRepo.findByProduct_IdInOrderByIdAsc(productIds);
-    Map<Long, List<ProductVariant>> variantsByProduct = variantsAll.stream()
-        .collect(Collectors.groupingBy(v -> v.getProduct().getId()));
+    // Hibernate vẫn bind tham số dù nhánh OR “short-circuit”, nên an toàn nhất vẫn truyền 1 list không rỗng.
+    List<Long> catIdsParam = noCatFilter ? List.of(-1L) : ids;
 
-    // Bulk stock cho variants
-    Map<Long, Integer> variantQty;
-    if (variantsAll.isEmpty()) {
-      variantQty = Map.of();
-    } else {
-      List<Long> variantIds = variantsAll.stream().map(ProductVariant::getId).toList();
-      variantQty = invRepo.findVariantStock(variantIds).stream()
-          .collect(Collectors.toMap(
-              InventoryMovementRepository.VariantStockRow::getVariantId,
-              r -> Optional.ofNullable(r.getQty()).orElse(0)
-          ));
-    }
+    Page<Product> p = productRepo.search(keyword, catIdsParam, noCatFilter, pageable);
 
-    // Map từng product -> dto (stock hiển thị: nếu có biến thể => tổng tồn biến thể; không thì lấy productQty)
-    var items = p.getContent().stream().map(prod ->
-        toDto(
-            prod,
-            productQty.getOrDefault(prod.getId(), 0),
-            variantsByProduct.getOrDefault(prod.getId(), List.of()),
-            variantQty
-        )
-    ).toList();
-
-    return new PageResponse<>(items, p.getTotalElements(), p.getNumber(), p.getSize());
+    return mapPageToDto(p);
   }
 
   @Transactional(readOnly = true)
@@ -125,17 +101,11 @@ public class ProductService {
     applyUpsertToEntity(p, req);
   }
 
-  /**
-   * Xoá sản phẩm:
-   * - Nếu đã có movement ở product hoặc bất kỳ variant nào => soft-delete (active=false) cho product (+ variants).
-   * - Nếu chưa có ràng buộc => xoá cứng: dọn images/attributes/variants trước rồi xoá product.
-   */
   @Transactional
   public void delete(Long id) {
     var p = findById(id);
 
     boolean hasProductMov = invRepo.existsByProductId(id);
-
     var variants = variantRepo.findByProduct_IdOrderByIdAsc(id);
     boolean hasAnyVariantMov = variants.stream().anyMatch(v -> invRepo.existsByVariantId(v.getId()));
 
@@ -152,7 +122,7 @@ public class ProductService {
       return;
     }
 
-    // Xoá cứng an toàn (không bị movement tham chiếu)
+    // Xoá cứng
     var imgs = imageRepo.findByProduct_IdOrderBySortOrderAscIdAsc(id);
     if (!imgs.isEmpty()) imageRepo.deleteAll(imgs);
 
@@ -175,7 +145,7 @@ public class ProductService {
     p.setHasVariants(Boolean.TRUE.equals(req.getHasVariants()));
 
     if (Boolean.TRUE.equals(req.getHasVariants())) {
-      // Khi có biến thể: price dùng làm mốc (0 nếu null), salePrice null
+      // khi có biến thể: price là mốc (0 nếu null), salePrice null
       p.setPrice(zeroIfNull(req.getPrice()));
       p.setSalePrice(null);
     } else {
@@ -206,7 +176,6 @@ public class ProductService {
   public List<VariantDto> upsertVariants(Long productId, List<VariantUpsertDto> body){
     var p = findById(productId);
 
-    // enforce: chỉ upsert khi product đã bật hasVariants
     if (!Boolean.TRUE.equals(p.getHasVariants())) {
       throw new BadRequestException("Sản phẩm chưa bật 'hasVariants'. Vui lòng bật trước khi thêm biến thể.");
     }
@@ -235,7 +204,6 @@ public class ProductService {
 
       String newSku = in.getSku().trim();
 
-      // Đảm bảo SKU unique ở DB (trừ chính record đang chỉnh)
       Long excludeId = isNew ? -1L : e.getId();
       if (variantRepo.existsBySkuAndIdNot(newSku, excludeId)) {
         throw new BadRequestException("SKU đã tồn tại: " + newSku);
@@ -250,23 +218,18 @@ public class ProductService {
       keepIds.add(e.getId());
     }
 
-    // Xử lý các biến thể không còn trong payload
     for (var old : existed.values()) {
       if (!keepIds.contains(old.getId())) {
         if (invRepo.existsByVariantId(old.getId())) {
-          // đã có movement: soft delete
           if (Boolean.TRUE.equals(old.getActive())) {
             old.setActive(false);
             variantRepo.save(old);
           }
         } else {
-          // chưa phát sinh movement: xoá cứng
           variantRepo.deleteById(old.getId());
         }
       }
     }
-
-    // Trả về danh sách mới nhất (kèm stock tính từ sổ kho)
     return listVariants(productId);
   }
 
@@ -343,7 +306,6 @@ public class ProductService {
   }
 
   private String blankToNull(String s){ return (s==null || s.isBlank()) ? null : s.trim(); }
-
   private BigDecimal zeroIfNull(BigDecimal x){ return x==null ? BigDecimal.ZERO : x; }
 
   private String writeJson(Map<String,String> map){
@@ -352,7 +314,7 @@ public class ProductService {
   }
 
   private Map<String,String> readJson(String json){
-    try { return json==null? null : om.readValue(json, new TypeReference<Map<String,String>>(){}); }
+    try { return json==null? null : om.readValue(json, new TypeReference<Map<String,String>>(){}) ; }
     catch (Exception e){ return null; }
   }
 
@@ -370,7 +332,7 @@ public class ProductService {
                                 List<ProductVariant> variants,
                                 Map<Long,Integer> variantQtyMap) {
     var images = imageRepo.findByProduct_IdOrderBySortOrderAscIdAsc(p.getId());
-    var categoryName = categoryRepo.findById(p.getCategoryId()).map(c -> c.getName()).orElse(null);
+    var categoryName = categoryRepo.findById(p.getCategoryId()).map(Category::getName).orElse(null);
     var attrs = attributeRepo.findByProduct_IdOrderByIdAsc(p.getId()).stream().map(a ->
         AttributeDto.builder().id(a.getId()).name(a.getName()).value(a.getValue()).build()
     ).toList();
@@ -379,7 +341,6 @@ public class ProductService {
         .map(v -> toDto(v, variantQtyMap.getOrDefault(v.getId(), 0)))
         .toList();
 
-    // ✅ Stock hiển thị: nếu có biến thể => tổng tồn các variant; nếu không => tồn cấp product
     int displayStock = Boolean.TRUE.equals(p.getHasVariants())
         ? variants.stream().mapToInt(v -> variantQtyMap.getOrDefault(v.getId(), 0)).sum()
         : productQty;
@@ -398,5 +359,81 @@ public class ProductService {
         .variants(variantDtos)
         .attributes(attrs)
         .build();
+  }
+
+  /**
+   * Gộp từ CategoryHierarchyService:
+   * - Nếu không truyền categoryId/catSlug -> trả về null (không lọc theo danh mục).
+   * - Nếu truyền danh mục (cha hoặc con) -> trả về id của chính nó + toàn bộ con cháu (DFS).
+   *   Lưu ý: dữ liệu của bạn đã enforce "product chỉ gắn vào lá", nên kết quả tương đương "toàn bộ lá dưới node".
+   */
+  private List<Long> resolveCategoryIds(Long categoryId, String catSlug){
+    Category root = null;
+    if (categoryId != null) {
+      root = categoryRepo.findById(categoryId).orElse(null);
+    } else if (catSlug != null && !catSlug.isBlank()) {
+      root = categoryRepo.findBySlug(catSlug.trim()).orElse(null);
+    }
+    if (root == null) return null;
+
+    // lấy toàn bộ danh mục, gom map<parentId, List<Category>>
+    List<Category> all = categoryRepo.findAll(Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("name")));
+    Map<Long, List<Category>> byParent = new HashMap<>();
+    for (Category c : all) {
+      Long pid = c.getParentId();
+      if (pid != null) {
+        byParent.computeIfAbsent(pid, k -> new ArrayList<>()).add(c);
+      }
+    }
+
+    List<Long> ids = new ArrayList<>();
+    Deque<Long> stack = new ArrayDeque<>();
+    stack.push(root.getId());
+    while (!stack.isEmpty()) {
+      Long cur = stack.pop();
+      ids.add(cur);
+      for (Category ch : byParent.getOrDefault(cur, List.of())) {
+        stack.push(ch.getId());
+      }
+    }
+    return ids;
+  }
+
+  // ==== small utils
+  private PageResponse<ProductResponse> mapPageToDto(Page<Product> p){
+    if (p.getContent().isEmpty()) {
+      return new PageResponse<>(List.of(), p.getTotalElements(), p.getNumber(), p.getSize());
+    }
+    // Bulk stock (cấp product)
+    List<Long> productIds = p.getContent().stream().map(Product::getId).toList();
+    Map<Long, Integer> productQty = invRepo.findProductStock(productIds).stream()
+        .collect(Collectors.toMap(
+            InventoryMovementRepository.ProductStockRow::getProductId,
+            r -> Optional.ofNullable(r.getQty()).orElse(0)
+        ));
+
+    // Bulk variants
+    var variantsAll = variantRepo.findByProduct_IdInOrderByIdAsc(productIds);
+    Map<Long, List<ProductVariant>> variantsByProduct = variantsAll.stream()
+        .collect(Collectors.groupingBy(v -> v.getProduct().getId()));
+
+    // Bulk stock variants
+    Map<Long, Integer> variantQty = variantsAll.isEmpty() ? Map.of() :
+        invRepo.findVariantStock(variantsAll.stream().map(ProductVariant::getId).toList()).stream()
+            .collect(Collectors.toMap(
+                InventoryMovementRepository.VariantStockRow::getVariantId,
+                r -> Optional.ofNullable(r.getQty()).orElse(0)
+            ));
+
+    var items = p.getContent().stream().map(prod ->
+        toDto(
+            prod,
+            productQty.getOrDefault(prod.getId(), 0),
+            variantsByProduct.getOrDefault(prod.getId(), List.of()),
+            variantQty
+        )
+    ).toList();
+
+    return new PageResponse<>(items, p.getTotalElements(), p.getNumber(), p.getSize());
   }
 }

@@ -4,6 +4,7 @@ export interface Category {
   slug: string;
   description?: string;
   parentId?: number|null;
+  imageUrl?: string | null;     // <-- thêm
   children?: Category[]; // chỉ cho tree public
 }
 

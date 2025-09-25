@@ -201,49 +201,54 @@ public class OrderService {
   }
 
   /** Map entity -> DTO (giữ nguyên phần của bạn) */
-  public OrderDto toDto(Order o, boolean includeItems) {
-    var dto = new OrderDto();
-    dto.setId(o.getId());
-    dto.setOrderCode(o.getOrderCode());
-    dto.setUserId(o.getUserId());
-    dto.setStatus(o.getStatus());
-    dto.setPaymentStatus(o.getPaymentStatus());
-    dto.setPaymentMethod(o.getPaymentMethod());
-    dto.setSubtotalAmount(o.getSubtotalAmount());
-    dto.setDiscountAmount(o.getDiscountAmount());
-    dto.setShippingFee(o.getShippingFee());
-    dto.setTaxAmount(o.getTaxAmount());
-    dto.setTotalAmount(o.getTotalAmount());
-    dto.setCustomerName(o.getCustomerName());
-    dto.setCustomerEmail(o.getCustomerEmail());
-    dto.setCustomerPhone(o.getCustomerPhone());
-    dto.setShippingProvince(o.getShippingProvince());
-    dto.setShippingDistrict(o.getShippingDistrict());
-    dto.setShippingWard(o.getShippingWard());
-    dto.setShippingAddress1(o.getShippingAddress1());
-    dto.setShippingAddress2(o.getShippingAddress2());
-    dto.setNote(o.getNote());
-    dto.setCreatedAt(o.getCreatedAt());
+ // src/main/java/com/shopmypham/modules/order/OrderService.java
+public OrderDto toDto(Order o, boolean includeItems) {
+  var dto = new OrderDto();
+  dto.setId(o.getId());
+  dto.setOrderCode(o.getOrderCode());
+  dto.setUserId(o.getUserId());
+  dto.setStatus(o.getStatus());
+  dto.setPaymentStatus(o.getPaymentStatus());
+  dto.setPaymentMethod(o.getPaymentMethod());
+  dto.setSubtotalAmount(o.getSubtotalAmount());
+  dto.setDiscountAmount(o.getDiscountAmount());
+  dto.setShippingFee(o.getShippingFee());
+  dto.setTaxAmount(o.getTaxAmount());
+  dto.setTotalAmount(o.getTotalAmount());
+  dto.setCustomerName(o.getCustomerName());
+  dto.setCustomerEmail(o.getCustomerEmail());
+  dto.setCustomerPhone(o.getCustomerPhone());
+  dto.setShippingProvince(o.getShippingProvince());
+  dto.setShippingDistrict(o.getShippingDistrict());
+  dto.setShippingWard(o.getShippingWard());
+  dto.setShippingAddress1(o.getShippingAddress1());
+  dto.setShippingAddress2(o.getShippingAddress2());
+  dto.setNote(o.getNote());
 
-    if (includeItems && o.getItems()!=null) {
-      var items = new ArrayList<OrderItemDto>();
-      for (var it : o.getItems()) {
-        var i = new OrderItemDto();
-        i.setId(it.getId());
-        i.setProductId(it.getProductId());
-        i.setVariantId(it.getVariantId());
-        i.setProductSku(it.getProductSku());
-        i.setProductName(it.getProductName());
-        i.setOptionsSnapshot(it.getOptionsSnapshot());
-        i.setUnitPrice(it.getUnitPrice());
-        i.setQuantity(it.getQuantity());
-        i.setLineTotal(it.getLineTotal());
-        items.add(i);
-      }
-      dto.setItems(items);
+  // ✅ map Instant
+  dto.setCreatedAt(o.getCreatedAt());
+  dto.setUpdatedAt(o.getUpdatedAt());
+
+  if (includeItems && o.getItems()!=null) {
+    var items = new ArrayList<OrderItemDto>();
+    for (var it : o.getItems()) {
+      var i = new OrderItemDto();
+      i.setId(it.getId());
+      i.setProductId(it.getProductId());
+      i.setVariantId(it.getVariantId());
+      i.setProductSku(it.getProductSku());
+      i.setProductName(it.getProductName());
+      i.setOptionsSnapshot(it.getOptionsSnapshot());
+      i.setUnitPrice(it.getUnitPrice());
+      i.setQuantity(it.getQuantity());
+      i.setLineTotal(it.getLineTotal());
+      items.add(i);
     }
-    return dto;
+    dto.setItems(items);
   }
+  return dto;
+}
+
 
   @Transactional(readOnly = true)
   public OrderDto get(Long id){

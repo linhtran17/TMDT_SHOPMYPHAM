@@ -3,17 +3,17 @@ package com.shopmypham.modules.order;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Entity
 @Table(name = "orders")
-@Getter
-@Setter
+@Getter @Setter
 public class Order {
-
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -50,7 +50,6 @@ public class Order {
   @Column(name = "total_amount", precision = 19, scale = 2, nullable = false)
   private BigDecimal totalAmount = BigDecimal.ZERO;
 
-  // 👇👇 bổ sung để đối soát coupon nhanh
   @Column(name = "coupon_id")
   private Long couponId;
 
@@ -84,13 +83,15 @@ public class Order {
   @Column(columnDefinition = "TEXT")
   private String note;
 
-  @Column(name = "created_at", insertable = false, updatable = false)
-  private LocalDateTime createdAt;
+  // ✅ Để Hibernate set thời gian UTC
+  @CreationTimestamp
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
 
-  @Column(name = "updated_at", insertable = false, updatable = false)
-  private LocalDateTime updatedAt;
+  @UpdateTimestamp
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
 
-  /** Items không map quan hệ để đơn giản, chỉ dùng khi trả FE */
   @Transient
   private List<OrderItem> items;
 }

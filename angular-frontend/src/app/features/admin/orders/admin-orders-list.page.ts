@@ -57,7 +57,7 @@ type AdminStatus = 'pending'|'confirmed'|'processing'|'shipped'|'delivered'|'can
         <tbody>
           <tr *ngFor="let o of items" class="border-t">
             <td>{{o.orderCode}}</td>
-            <td>{{o.createdAt | date:'short'}}</td>
+<td>{{ o.createdAt | date:'short':'Asia/Ho_Chi_Minh' }}</td>
             <td>
               <div class="font-medium">{{ o.customerName || '—' }}</div>
               <div class="text-xs text-slate-500">{{ o.customerPhone || '' }}</div>
