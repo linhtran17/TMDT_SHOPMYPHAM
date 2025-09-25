@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, tap, catchError, throwError, map, of, switchMap } from 'rxjs';
 import { ApiService } from './api.service';
-import { ToastService } from '../../shared/toast/toast.service';
+import { ToastService } from '../../shared/toast/toast';
 
 export interface CartItem {
   id: number;

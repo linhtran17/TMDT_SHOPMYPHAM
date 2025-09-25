@@ -50,8 +50,7 @@ export class ToastService {
   `
 })
 export class ToastContainerComponent {
-  constructor(public toast: ToastService){} // public để template dùng trực tiếp
-
+  constructor(public toast: ToastService){}
   cls(k: ToastKind){ return { s: k==='success', e: k==='error', i: k==='info', w: k==='warning' }; }
   dot(k: ToastKind){ return { ds: k==='success', de: k==='error', di: k==='info', dw: k==='warning' }; }
 }

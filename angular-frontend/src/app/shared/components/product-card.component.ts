@@ -3,7 +3,7 @@ import { Component, EventEmitter, Input, Output, inject, effect } from '@angular
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { CartService } from '../../core/services/cart.service';
-import { ToastService } from '../toast/toast.service';
+import { ToastService } from '../toast/toast';
 import { WishlistService } from '../../core/services/wishlist.service';
 import { AuthService } from '../../core/services/auth.service';
 import { environment } from '../../../environments/environment';

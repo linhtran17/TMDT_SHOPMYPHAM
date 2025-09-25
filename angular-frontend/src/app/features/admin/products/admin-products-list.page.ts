@@ -7,6 +7,7 @@ import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { ProductResponse } from '../../../core/models/product.model';
 import { Category } from '../../../core/models/category.model';
+import { ToastService } from '../../../shared/toast/toast'; // hoặc '../../../shared/toast/toast' nếu export ở đó
 
 type Option = { id: number | null; label: string; disabled?: boolean };
 type PageResult<T> = { items: T[]; total: number };
@@ -25,6 +26,12 @@ type PageResult<T> = { items: T[]; total: number };
     .badge{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600; }
     .badge-red{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-700; }
     .cell-img{ @apply w-12 h-12 rounded-md object-cover border; }
+    .icon-btn{ @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white
+           hover:bg-slate-50 active:scale-[0.98] transition
+           focus:outline-none focus:ring-2 focus:ring-rose-300; }
+.icon-btn-rose{ @apply text-rose-600 border-rose-200 hover:bg-rose-50; }
+.icon{ @apply w-5 h-5 pointer-events-none select-none; }
+
   `],
   template: `
 <div class="wrap p-4 md:p-6">
@@ -81,10 +88,17 @@ type PageResult<T> = { items: T[]; total: number };
               <span *ngIf="p.active!==false; else off" class="badge">Hiển thị</span>
               <ng-template #off><span class="badge-red">Ẩn</span></ng-template>
             </td>
-            <td class="td text-right">
-              <a class="btn" [routerLink]="['/admin/products', p.id, 'edit']">Sửa</a>
-              <button class="btn text-rose-600" (click)="remove(p)">Xoá</button>
-            </td>
+            <td class="td">
+  <div class="flex justify-end items-center gap-2 w-24"> <!-- cố định chiều rộng & canh phải -->
+    <a class="icon-btn" [routerLink]="['/admin/products', p.id, 'edit']" title="Sửa" aria-label="Sửa">
+      <img class="icon" src="assets/icon/editt.png" alt="Sửa">
+    </a>
+    <button type="button" class="icon-btn icon-btn-rose" (click)="remove(p)" title="Xoá" aria-label="Xoá">
+      <img class="icon" src="assets/icon/binn.png" alt="Xoá">
+    </button>
+  </div>
+</td>
+
           </tr>
           <tr *ngIf="!items.length">
             <td class="td text-slate-500 text-center" colspan="8">Không có sản phẩm.</td>
@@ -101,7 +115,6 @@ type PageResult<T> = { items: T[]; total: number };
   </div>
 
   <div class="text-sm text-slate-500 mt-3" *ngIf="loading">Đang tải…</div>
-  <div class="text-sm text-rose-600 mt-3" *ngIf="error">{{ error }}</div>
 </div>
   `
 })
@@ -109,6 +122,7 @@ export class AdminProductsListPageComponent implements OnInit {
   private productSvc = inject(ProductService);
   private categorySvc = inject(CategoryService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   items: ProductResponse[] = [];
   total = 0; page = 0; size = 12;
@@ -118,7 +132,6 @@ export class AdminProductsListPageComponent implements OnInit {
   catOptions = signal<Option[]>([]);
 
   loading = false;
-  error = '';
   private debounce?: any;
 
   ngOnInit(){
@@ -158,7 +171,7 @@ export class AdminProductsListPageComponent implements OnInit {
   }
 
   load(p = 0){
-    this.loading = true; this.error = '';
+    this.loading = true;
     this.page = Math.max(0, p);
     this.productSvc.search({
       q: this.q || undefined,
@@ -168,7 +181,10 @@ export class AdminProductsListPageComponent implements OnInit {
       next: (pg: PageResult<ProductResponse>) => {
         this.items = pg.items || []; this.total = pg.total || 0; this.loading = false;
       },
-      error: (e:any) => { this.items = []; this.total = 0; this.loading = false; this.error = e?.error?.message || 'Tải dữ liệu thất bại'; }
+      error: (e:any) => {
+        this.items = []; this.total = 0; this.loading = false;
+        this.toast.error(e?.error?.message || 'Tải danh sách sản phẩm thất bại');
+      }
     });
   }
 
@@ -178,8 +194,11 @@ export class AdminProductsListPageComponent implements OnInit {
   remove(p: ProductResponse){
     if (!confirm(`Xoá sản phẩm "${p.name}"?`)) return;
     this.productSvc.remove(p.id).subscribe({
-      next: () => this.load(this.page),
-      error: (e:any) => alert(e?.error?.message || 'Xoá thất bại')
+      next: () => {
+        this.toast.success('Đã xoá sản phẩm');
+        this.load(this.page);
+      },
+      error: (e:any) => this.toast.error(e?.error?.message || 'Xoá sản phẩm thất bại')
     });
   }
 

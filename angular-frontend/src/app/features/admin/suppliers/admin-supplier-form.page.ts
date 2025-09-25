@@ -4,7 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { SupplierService } from '../../../core/services/supplier.service';
 import { SupplierRequest, Supplier } from '../../../core/models/supplier.model';
-import { ToastService } from '../../../shared/toast/toast.service';
+import { ToastService } from '../../../shared/toast/toast';
+import { LoadingOverlayService } from '../../../shared/ui/loading-overlay';
 
 @Component({
   standalone: true,
@@ -109,6 +110,7 @@ export class AdminSupplierFormPageComponent implements OnInit {
   private router = inject(Router);
   private svc = inject(SupplierService);
   private toast = inject(ToastService);
+  private overlay = inject(LoadingOverlayService);
 
   id: number | null = null;
   isEdit = signal(false);
@@ -137,6 +139,7 @@ export class AdminSupplierFormPageComponent implements OnInit {
   }
 
   private load(id: number){
+    this.overlay.open('Đang tải nhà cung cấp…');
     this.svc.get(id).subscribe({
       next: (s: Supplier) => {
         this.form = {
@@ -144,8 +147,9 @@ export class AdminSupplierFormPageComponent implements OnInit {
           email: s.email || '', address: s.address || '',
           taxCode: s.taxCode || '', note: s.note || '', active: s.active !== false
         };
+        this.overlay.close();
       },
-      error: () => this.toast.error('Không tải được NCC')
+      error: () => { this.overlay.close(); this.toast.error('Không tải được NCC'); }
     });
   }
 
@@ -167,40 +171,34 @@ export class AdminSupplierFormPageComponent implements OnInit {
   private validate(): boolean {
     const e: any = {};
 
-    // Tên
     if (!this.form.name || !this.form.name.toString().trim()) {
       e.name = 'Vui lòng nhập tên nhà cung cấp.';
     } else if (this.form.name.toString().trim().length > 255) {
       e.name = 'Tên quá dài (tối đa 255 ký tự).';
     }
 
-    // Mã (tuỳ chọn, nhưng nếu nhập thì chỉ A-Z/0-9/-/_ và ≤ 50)
     if (this.form.code && this.form.code.trim()) {
       const c = this.form.code.trim();
       if (c.length > 50) e.code = 'Mã quá dài (tối đa 50 ký tự).';
       if (!/^[A-Za-z0-9\-_]+$/.test(c)) e.code = 'Mã chỉ cho phép chữ, số, -, _.';
     }
 
-    // SĐT (BẮT BUỘC)
     const phone = (this.form.phone ?? '').trim();
     if (!phone) {
       e.phone = 'Vui lòng nhập số điện thoại liên hệ.';
     } else {
       if (phone.length > 50) e.phone = 'SĐT quá dài (tối đa 50 ký tự).';
-      // Regex cơ bản: cho phép số, khoảng trắng, +, -, ()
       if (!/^[0-9+\-\s()]{6,50}$/.test(phone)) {
         e.phone = 'SĐT không hợp lệ. Chỉ cho phép số, khoảng trắng, +, -, ().';
       }
     }
 
-    // Email (tuỳ chọn, nếu có thì hợp lệ & ≤150)
     const email = (this.form.email ?? '').trim();
     if (email) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Email không hợp lệ.';
       if (email.length > 150) e.email = 'Email quá dài (tối đa 150 ký tự).';
     }
 
-    // Địa chỉ (BẮT BUỘC)
     const addr = (this.form.address ?? '').trim();
     if (!addr) {
       e.address = 'Vui lòng nhập địa chỉ liên hệ.';
@@ -208,12 +206,10 @@ export class AdminSupplierFormPageComponent implements OnInit {
       e.address = 'Địa chỉ quá dài (tối đa 255 ký tự).';
     }
 
-    // Mã số thuế (optional, ≤50)
     if (this.form.taxCode && this.form.taxCode.trim().length > 50) {
       e.taxCode = 'Mã số thuế quá dài (tối đa 50 ký tự).';
     }
 
-    // Ghi chú (optional, ≤255)
     if (this.form.note && this.form.note.trim().length > 255) {
       e.note = 'Ghi chú quá dài (tối đa 255 ký tự).';
     }
@@ -228,6 +224,7 @@ export class AdminSupplierFormPageComponent implements OnInit {
     if (!this.validate()) return;
 
     this.saving.set(true);
+    this.overlay.open('Đang lưu nhà cung cấp…');
 
     const body: SupplierRequest = {
       name: this.form.name!.trim(),
@@ -240,8 +237,10 @@ export class AdminSupplierFormPageComponent implements OnInit {
       active: this.form.active !== false
     };
 
+    const finish = () => { this.saving.set(false); this.overlay.close(); };
+
     const handleApiError = (e: any) => {
-      this.saving.set(false);
+      finish();
       const msg: string = e?.error?.message || 'Lưu thất bại. Vui lòng thử lại.';
       if (/mã/i.test(msg) && /tồn tại|trùng|duplicate/i.test(msg)) {
         this.errors.update(x => ({ ...x, code: msg, _api: null }));
@@ -252,16 +251,17 @@ export class AdminSupplierFormPageComponent implements OnInit {
       } else {
         this.errors.update(x => ({ ...x, _api: msg }));
       }
+      this.toast.error(msg);
     };
 
     if (this.id) {
       this.svc.update(this.id, body).subscribe({
-        next: () => { this.saving.set(false); this.toast.success('Đã lưu'); this.router.navigate(['/admin/suppliers']); },
+        next: () => { finish(); this.toast.success('Đã lưu'); this.router.navigate(['/admin/suppliers']); },
         error: handleApiError
       });
     } else {
       this.svc.create(body).subscribe({
-        next: () => { this.saving.set(false); this.toast.success('Đã tạo'); this.router.navigate(['/admin/suppliers']); },
+        next: () => { finish(); this.toast.success('Đã tạo'); this.router.navigate(['/admin/suppliers']); },
         error: handleApiError
       });
     }

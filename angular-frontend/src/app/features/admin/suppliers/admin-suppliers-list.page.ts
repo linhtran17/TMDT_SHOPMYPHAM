@@ -5,6 +5,8 @@ import { RouterLink } from '@angular/router';
 import { Supplier } from '../../../core/models/supplier.model';
 import { SupplierService } from '../../../core/services/supplier.service';
 import { PageResponse } from '../../../core/models/api.model';
+import { ToastService } from '../../../shared/toast/toast';
+import { LoadingOverlayService } from '../../../shared/ui/loading-overlay';
 
 @Component({
   standalone: true,
@@ -80,26 +82,44 @@ import { PageResponse } from '../../../core/models/api.model';
 })
 export class AdminSuppliersListPageComponent implements OnInit {
   private svc = inject(SupplierService);
+  private toast = inject(ToastService);
+  private overlay = inject(LoadingOverlayService);
 
   items: Supplier[] = [];
   total = 0; page = 0; size = 12;
   q = ''; private t?: any;
+  loading = signal(false);
 
-  ngOnInit(){ this.load(0); }
+  ngOnInit(){ this.load(0, true); }
 
-  debounced(){ clearTimeout(this.t); this.t = setTimeout(()=> this.load(0), 250); }
+  debounced(){ clearTimeout(this.t); this.t = setTimeout(()=> this.load(0), 300); }
   reset(){ this.q=''; this.load(0); }
   totalPages(){ return Math.max(1, Math.ceil(this.total/this.size)); }
 
-  load(p=0){
+  load(p=0, first=false){
     this.page = Math.max(0, p);
+    // lần đầu mở overlay “toàn màn”; những lần sau dùng overlay nhanh cho cảm giác phản hồi
+    if (first) this.overlay.open('Đang tải danh sách NCC…'); else this.overlay.open('Đang tải…');
+
     this.svc.search({ q: this.q || undefined, page: this.page, size: this.size }).subscribe({
-      next: (pg: PageResponse<Supplier>) => { this.items = pg.items||[]; this.total = pg.total||0; },
-      error: () => { this.items=[]; this.total=0; }
+      next: (pg: PageResponse<Supplier>) => {
+        this.items = pg.items||[]; this.total = pg.total||0;
+        this.overlay.close();
+      },
+      error: () => {
+        this.items=[]; this.total=0;
+        this.overlay.close();
+        this.toast.error('Không tải được danh sách');
+      }
     });
   }
+
   remove(s: Supplier){
     if (!confirm(`Xoá NCC "${s.name}"?`)) return;
-    this.svc.remove(s.id).subscribe({ next: () => this.load(this.page), error: () => alert('Xoá thất bại') });
+    this.overlay.open('Đang xoá…');
+    this.svc.remove(s.id).subscribe({
+      next: () => { this.overlay.close(); this.toast.success('Đã xoá'); this.load(this.page); },
+      error: () => { this.overlay.close(); this.toast.error('Xoá thất bại'); }
+    });
   }
 }
