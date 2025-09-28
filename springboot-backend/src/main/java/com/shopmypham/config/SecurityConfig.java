@@ -1,9 +1,9 @@
+// src/main/java/com/shopmypham/config/SecurityConfig.java
 package com.shopmypham.config;
 
 import com.shopmypham.modules.auth.GoogleOAuth2UserService;
 import com.shopmypham.modules.auth.JwtAuthenticationFilter;
 import com.shopmypham.modules.auth.JwtService;
-import com.shopmypham.modules.auth.OAuth2LoginSuccessHandler;
 import com.shopmypham.modules.auth.Role;
 import com.shopmypham.modules.user.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,10 +22,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,9 +33,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.*;
 
 @Configuration
 @EnableWebSecurity
@@ -43,7 +41,7 @@ import java.util.Collection;
 public class SecurityConfig {
 
   private final GoogleOAuth2UserService googleOAuth2UserService;
-  private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+  private final com.shopmypham.modules.auth.OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
   private final UserRepository userRepo;
   private final JwtService jwtService;
   private final PasswordEncoder passwordEncoder;
@@ -53,7 +51,7 @@ public class SecurityConfig {
 
   @Autowired
   public SecurityConfig(GoogleOAuth2UserService googleOAuth2UserService,
-                        OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+                        com.shopmypham.modules.auth.OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
                         UserRepository userRepo,
                         JwtService jwtService,
                         PasswordEncoder passwordEncoder) {
@@ -64,35 +62,45 @@ public class SecurityConfig {
     this.passwordEncoder = passwordEncoder;
   }
 
+  // ===== UserDetailsService: lấy user + roles/permissions theo email (ignore-case) =====
   @Bean
   @Transactional(readOnly = true)
   public UserDetailsService userDetailsService() {
-    return email -> userRepo.findByEmailWithRolesAndPerms(email)
-        .map(u -> {
-          var authorities = new ArrayList<SimpleGrantedAuthority>();
-          Collection<Role> roles = (u.getRoles() == null) ? new ArrayList<>() : u.getRoles();
-          for (Role r : roles) {
-            if (r != null && r.getName() != null) {
-              String name = r.getName().trim();
-              String springRole = name.startsWith("ROLE_") ? name : "ROLE_" + name;
-              authorities.add(new SimpleGrantedAuthority(springRole));
-              if (r.getPermissions() != null) {
-                r.getPermissions().forEach(p -> {
-                  if (p != null && p.getName() != null) {
-                    authorities.add(new SimpleGrantedAuthority(p.getName().trim()));
-                  }
-                });
+    return (String emailRaw) -> {
+      String email = (emailRaw == null) ? "" : emailRaw.trim();
+
+      var u = userRepo.findByEmailWithRolesAndPermsIgnoreCase(email)
+          .or(() -> userRepo.findByEmailWithRolesAndPerms(email))
+          .or(() -> userRepo.findByEmailIgnoreCase(email))
+          .or(() -> userRepo.findByEmail(email))
+          .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+      var authorities = new ArrayList<SimpleGrantedAuthority>();
+      var roles = (u.getRoles() == null) ? Set.<Role>of() : u.getRoles();
+      for (Role r : roles) {
+        if (r != null && r.getName() != null) {
+          String springRole = r.getName().startsWith("ROLE_") ? r.getName() : "ROLE_" + r.getName();
+          authorities.add(new SimpleGrantedAuthority(springRole));
+          if (r.getPermissions() != null) {
+            r.getPermissions().forEach(p -> {
+              if (p != null && p.getName() != null) {
+                authorities.add(new SimpleGrantedAuthority(p.getName().trim()));
               }
-            }
+            });
           }
-          boolean locked = (u.getEnabled() != null && !u.getEnabled());
-          return User.withUsername(u.getEmail())
-              .password(u.getPassword())
-              .authorities(authorities)
-              .accountLocked(locked)
-              .build();
-        })
-        .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        }
+      }
+
+      boolean locked = (u.getEnabled() != null && !u.getEnabled());
+
+      // Dùng fully-qualified để tránh clash với entity User của bạn
+      return org.springframework.security.core.userdetails.User
+          .withUsername(u.getEmail())
+          .password(u.getPassword())
+          .authorities(authorities)
+          .accountLocked(locked)
+          .build();
+    };
   }
 
   @Bean
@@ -131,6 +139,7 @@ public class SecurityConfig {
     return source;
   }
 
+  // ===== API chain (/api/**) — JWT, stateless =====
   @Bean @Order(1)
   public SecurityFilterChain apiChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
     http
@@ -180,8 +189,25 @@ public class SecurityConfig {
     return http.build();
   }
 
+  // ===== Web chain — OAuth2/OIDC login; sau khi login sẽ redirect về FE kèm JWT =====
   @Bean @Order(2)
   public SecurityFilterChain webChain(HttpSecurity http) throws Exception {
+
+    // OIDC inline (không tạo file mới): upsert user + gán authorities từ DB
+    OidcUserService inlineOidc = new OidcUserService() {
+      @Override
+      public org.springframework.security.oauth2.core.oidc.user.OidcUser loadUser(
+          org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest req) {
+        var oidc = super.loadUser(req);
+        var claims = oidc.getClaims();
+        String email = (String) claims.get("email");
+        String name = (String) (claims.getOrDefault("name", claims.getOrDefault("given_name", "")));
+        String picture = (String) claims.get("picture");
+        var authorities = googleOAuth2UserService.upsertUser(email, name, picture);
+        return new DefaultOidcUser(authorities, req.getIdToken(), oidc.getUserInfo(), "email");
+      }
+    };
+
     http
       .csrf(AbstractHttpConfigurer::disable)
       .cors(c -> c.configurationSource(corsConfigurationSource()))
@@ -190,7 +216,10 @@ public class SecurityConfig {
         .anyRequest().permitAll()
       )
       .oauth2Login(oauth -> oauth
-        .userInfoEndpoint(u -> u.userService(googleOAuth2UserService))
+        .userInfoEndpoint(u -> u
+          .oidcUserService(inlineOidc)           // OIDC (Google)
+          .userService(googleOAuth2UserService)  // OAuth2 fallback (nếu provider không OIDC)
+        )
         .successHandler(oAuth2LoginSuccessHandler)
         .failureHandler((req, res, ex) -> {
           res.setStatus(302);

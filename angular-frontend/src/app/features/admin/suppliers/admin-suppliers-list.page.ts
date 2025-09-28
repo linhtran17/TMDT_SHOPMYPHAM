@@ -21,6 +21,12 @@ import { LoadingOverlayService } from '../../../shared/ui/loading-overlay';
     .th{ @apply text-left p-2 text-slate-600; } .td{ @apply p-2; }
     .badge{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600; }
     .badge-red{ @apply inline-flex items-center px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-700; }
+    .icon-btn{ @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white
+        hover:bg-slate-50 active:scale-[0.98] transition
+        focus:outline-none focus:ring-2 focus:ring-rose-300; }
+    .icon-btn-rose{ @apply text-rose-600 border-rose-200 hover:bg-rose-50; }
+    .icon{ @apply w-5 h-5 pointer-events-none select-none; }
+
   `],
   template: `
   <div class="wrap">
@@ -61,10 +67,17 @@ import { LoadingOverlayService } from '../../../shared/ui/loading-overlay';
                 <span *ngIf="s.active!==false; else off" class="badge">Đang dùng</span>
                 <ng-template #off><span class="badge-red">Ngừng</span></ng-template>
               </td>
-              <td class="td text-right">
-                <a class="btn" [routerLink]="['/admin/suppliers', s.id, 'edit']">Sửa</a>
-                <button class="btn text-rose-600" (click)="remove(s)">Xoá</button>
-              </td>
+              
+               <td class="td ">
+  <div class="flex justify-end items-center gap-2 w-24"> <!-- cố định chiều rộng & canh phải -->
+    <a class="icon-btn" [routerLink]="['/admin/suppliers', s.id, 'edit']" title="Sửa" aria-label="Sửa">
+      <img class="icon" src="assets/icon/editt.png" alt="Sửa">
+    </a>
+    <button type="button" class="icon-btn icon-btn-rose" (click)="remove(s)" title="Xoá" aria-label="Xoá">
+      <img class="icon" src="assets/icon/binn.png" alt="Xoá">
+    </button>
+  </div>
+</td>
             </tr>
             <tr *ngIf="!items.length"><td class="td text-center text-slate-500" colspan="6">Không có dữ liệu</td></tr>
           </tbody>

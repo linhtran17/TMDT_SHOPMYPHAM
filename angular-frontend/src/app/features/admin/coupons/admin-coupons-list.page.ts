@@ -7,6 +7,12 @@ import { Coupon } from '../../../core/models/coupon.model';
 @Component({
   standalone: true,
   imports: [CommonModule, RouterLink],
+  styles: [`
+    .icon-bar{ @apply flex justify-end items-center gap-2 w-24; }
+    .icon-btn{ @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50; }
+    .icon-btn-rose{ @apply border-rose-200 hover:bg-rose-50; }
+    .icon{ @apply w-4 h-4; }
+  `],
   template: `
 <section class="p-4">
   <div class="bg-white border rounded-2xl p-4">
@@ -25,7 +31,7 @@ import { Coupon } from '../../../core/models/coupon.model';
           <th class="text-left">Max giảm</th>
           <th class="text-left">Hiệu lực</th>
           <th class="text-left">Trạng thái</th>
-          <th></th>
+          <th class="w-[96px]"></th>
         </tr>
       </thead>
       <tbody>
@@ -41,9 +47,15 @@ import { Coupon } from '../../../core/models/coupon.model';
               {{ c.active ? 'Đang bật' : 'Tắt' }}
             </span>
           </td>
-          <td class="text-right">
-            <a [routerLink]="['/admin/coupons', c.id, 'edit']" class="text-rose-600 hover:underline">Sửa</a>
-            <button class="ml-2 text-red-600" (click)="remove(c)">Xoá</button>
+          <td>
+            <div class="icon-bar">
+              <a class="icon-btn" [routerLink]="['/admin/coupons', c.id, 'edit']" title="Sửa" aria-label="Sửa">
+                <img class="icon" src="assets/icon/editt.png" alt="Sửa">
+              </a>
+              <button class="icon-btn icon-btn-rose" type="button" (click)="remove(c)" title="Xoá" aria-label="Xoá">
+                <img class="icon" src="assets/icon/binn.png" alt="Xoá">
+              </button>
+            </div>
           </td>
         </tr>
         <tr *ngIf="!items.length"><td colspan="8" class="py-6 text-center text-slate-500">Không có dữ liệu</td></tr>
@@ -61,8 +73,15 @@ export default class AdminCouponsListPage {
 
   load(){
     this.api.adminList('', 0, 100).subscribe({
-      next: p => this.items = p.items || [],
-      error: () => this.items = []
+      next: p => {
+        console.log('[COUPONS] page result:', p);
+        this.items = p.items || [];
+      },
+      error: (err) => {
+        console.error('[COUPONS] load error:', err);
+        alert('Không tải được danh sách mã giảm giá. Kiểm tra Console Network để biết chi tiết.');
+        this.items = [];
+      }
     });
   }
 

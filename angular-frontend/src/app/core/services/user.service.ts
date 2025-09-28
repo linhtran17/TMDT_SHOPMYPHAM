@@ -4,7 +4,6 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { Role } from '../models/user.model';
 
-
 export interface PageUsersParams { q?: string; page?: number; size?: number; }
 
 @Injectable({ providedIn: 'root' })
@@ -12,7 +11,6 @@ export class UserService {
   private http = inject(HttpClient);
   private base = '/api';
 
-  // Chuẩn hoá về { content, totalElements } cho FE
   pageUsers(params: PageUsersParams): Observable<{ content: any[]; totalElements: number }> {
     let p = new HttpParams();
     if (params.q) p = p.set('q', params.q);
@@ -37,17 +35,22 @@ export class UserService {
   }
 
   getUser(id: number){
-  // Nếu bạn đang dùng this.base = '/api'
-  // => endpoint sẽ là /api/users/:id
-  return this.http.get<any>(`${this.base}/users/${id}`).pipe(
-    map((res: any) => res?.data ?? res) // backend trả ApiResponse thì lấy data
-  );
-}
+    return this.http.get<any>(`${this.base}/users/${id}`).pipe(
+      map((res: any) => res?.data ?? res)
+    );
+  }
 
   createUser(body: any){ return this.http.post<any>(`${this.base}/users`, body); }
   updateUser(id: number, body: any){ return this.http.put<void>(`${this.base}/users/${id}`, body); }
+
   toggleEnabled(id: number, enabled: boolean){
     return this.http.patch<void>(`${this.base}/users/${id}/enabled`, { enabled });
   }
+
   deleteUser(id: number){ return this.http.delete<void>(`${this.base}/users/${id}`); }
+
+  /** ✅ SELF UPDATE đúng spec BE: PUT /api/me */
+  updateMe(body: { fullName?: string; phone?: string; address?: string; avatarUrl?: string }) {
+    return this.http.put<void>(`${this.base}/me`, body);
+  }
 }

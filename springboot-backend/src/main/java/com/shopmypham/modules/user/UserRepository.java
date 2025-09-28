@@ -1,3 +1,4 @@
+// src/main/java/com/shopmypham/modules/user/UserRepository.java
 package com.shopmypham.modules.user;
 
 import org.springframework.data.domain.Page;
@@ -12,17 +13,16 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
   Optional<User> findByEmail(String email);
-  Optional<User> findByEmailIgnoreCase(String email); // thêm cho các chỗ dùng IgnoreCase
+
+  Optional<User> findByEmailIgnoreCase(String email);
+
   boolean existsByEmail(String email);
 
-  // dùng khi xóa role để chặn nếu đang được user dùng
   boolean existsByRoles_Id(Long roleId);
 
-  // List: nạp sẵn roles (không cần permissions)
   @EntityGraph(attributePaths = "roles")
   Page<User> findAllBy(Pageable pageable);
 
-  // Chi tiết theo id: nạp sẵn roles + permissions
   @Query("""
       select distinct u
       from User u
@@ -32,7 +32,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
       """)
   Optional<User> findWithRolesAndPermsById(@Param("id") Long id);
 
-  // Theo email (Security): nạp sẵn roles + permissions
+  // ✅ JOIN-FETCH roles + permissions, so sánh email không phân biệt hoa/thường
   @Query("""
       select distinct u
       from User u
@@ -40,9 +40,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
       left join fetch r.permissions p
       where lower(u.email) = lower(:email)
       """)
+  Optional<User> findByEmailWithRolesAndPermsIgnoreCase(@Param("email") String email);
+
+  // (Tuỳ bạn, có thể giữ thêm bản không ignore-case — KHÔNG bắt buộc)
+  @Query("""
+      select distinct u
+      from User u
+      left join fetch u.roles r
+      left join fetch r.permissions p
+      where u.email = :email
+      """)
   Optional<User> findByEmailWithRolesAndPerms(@Param("email") String email);
 
-  // Tìm kiếm có filter, eager roles
   @EntityGraph(attributePaths = "roles")
   @Query("""
       select u from User u

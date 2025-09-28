@@ -91,6 +91,13 @@ public class GlobalExceptionHandler {
         .body(ApiResponse.error("Xung đột dữ liệu"));
   }
 
+  // 422: rule nghiệp vụ không thoả (Unprocessable Entity)
+@ExceptionHandler(UnprocessableException.class)
+public ResponseEntity<ApiResponse<Void>> handleUnprocessable(UnprocessableException ex) {
+  return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+      .body(ApiResponse.error(ex.getMessage()));
+}
+
   // 500: Fallback DUY NHẤT
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleOther(Exception ex) {

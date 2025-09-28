@@ -1,3 +1,4 @@
+// src/main/java/com/shopmypham/modules/auth/GoogleOAuth2UserService.java
 package com.shopmypham.modules.auth;
 
 import com.shopmypham.modules.user.User;
@@ -7,7 +8,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
-import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -20,41 +20,30 @@ import java.util.*;
 public class GoogleOAuth2UserService extends DefaultOAuth2UserService {
 
   private final UserRepository userRepo;
-  private final PasswordEncoder passwordEncoder; // lấy từ bean của SecurityConfig, KHÔNG inject SecurityConfig
+  private final PasswordEncoder passwordEncoder;
 
-  @Override
+  /** Dùng chung cho OAuth2 & OIDC để upsert user và trả authorities */
   @Transactional
-  public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
-    OAuth2User oauthUser = super.loadUser(userRequest);
-    Map<String, Object> attr = new HashMap<>(oauthUser.getAttributes());
-
-    String email = asString(attr.get("email"), null);
+  public List<SimpleGrantedAuthority> upsertUser(String email, String name, String picture) {
     if (email == null || email.isBlank()) {
-      throw new OAuth2AuthenticationException("Google account has no email");
+      throw new RuntimeException("OAuth account has no email");
     }
-    String name = asString(attr.get("name"), asString(attr.get("given_name"), ""));
-    String picture = asString(attr.get("picture"), null);
 
-    // Upsert user theo email
     User user = userRepo.findByEmailIgnoreCase(email).orElseGet(() -> {
       User u = new User();
       u.setEmail(email);
-      u.setFullName(name);
+      u.setFullName(name != null ? name : email);
       u.setAvatarUrl(picture);
       u.setEnabled(true);
-      // đặt password ngẫu nhiên (không dùng để login)
-      u.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+      u.setPassword(passwordEncoder.encode(UUID.randomUUID().toString())); // random pwd
       return u;
     });
 
-    // Cập nhật thông tin cơ bản nếu thay đổi
     if (name != null && !name.equals(user.getFullName())) user.setFullName(name);
     if (picture != null && !picture.equals(user.getAvatarUrl())) user.setAvatarUrl(picture);
     if (user.getEnabled() == null) user.setEnabled(true);
-
     userRepo.save(user);
 
-    // authorities từ DB (nếu có)
     List<SimpleGrantedAuthority> authorities = new ArrayList<>();
     if (user.getRoles() != null) {
       user.getRoles().forEach(r -> {
@@ -71,12 +60,23 @@ public class GoogleOAuth2UserService extends DefaultOAuth2UserService {
         }
       });
     }
-    // đảm bảo có ít nhất quyền người dùng thường (không bắt buộc admin)
     if (authorities.stream().noneMatch(a -> a.getAuthority().startsWith("ROLE_"))) {
       authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
     }
+    return authorities;
+  }
 
-    // Trả về OAuth2User lấy "email" làm key định danh
+  @Override
+  @Transactional
+  public OAuth2User loadUser(OAuth2UserRequest userRequest) {
+    OAuth2User oauthUser = super.loadUser(userRequest);
+    Map<String, Object> attr = new HashMap<>(oauthUser.getAttributes());
+
+    String email = asString(attr.get("email"), null);
+    String name = asString(attr.get("name"), asString(attr.get("given_name"), ""));
+    String picture = asString(attr.get("picture"), null);
+
+    var authorities = upsertUser(email, name, picture);
     return new DefaultOAuth2User(authorities, attr, "email");
   }
 

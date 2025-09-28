@@ -1,3 +1,4 @@
+// src/main/java/com/shopmypham/modules/user/UserService.java
 package com.shopmypham.modules.user;
 
 import com.shopmypham.core.exception.BadRequestException;
@@ -30,6 +31,13 @@ public class UserService {
   @Transactional(readOnly = true)
   public User get(Long id){
     return repo.findWithRolesAndPermsById(id)
+        .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
+  }
+
+  // ✅ THÊM: lấy theo email (cho /me)
+  @Transactional(readOnly = true)
+  public User getByEmailIgnoreCase(String email){
+    return repo.findByEmailIgnoreCase(email)
         .orElseThrow(() -> new NotFoundException("Không tìm thấy người dùng"));
   }
 

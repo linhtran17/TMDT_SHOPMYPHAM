@@ -3,14 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, switchMap, tap, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { User } from '../models/user.model';
 
-export interface SimpleUser {
-  id: number;
-  email: string;
-  roles: string[];
-  name?: string;
-  fullName?: string | null;
-}
+export type SimpleUser = User; // alias, không phải sửa các nơi khác
 
 interface ApiResponse<T> {
   success: boolean;
@@ -23,7 +18,6 @@ interface ApiResponse<T> {
 export class AuthService {
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY  = 'auth_user';
-
   private api = '/api';
 
   private _user$ = new BehaviorSubject<SimpleUser | null>(this.readUser());
@@ -89,14 +83,15 @@ export class AuthService {
     );
   }
 
+  /** ✅ GỌI ĐÚNG: /api/users/me */
   fetchMe(): Observable<SimpleUser> {
-    return this.http.get<ApiResponse<SimpleUser>>(`${this.api}/auth/me`).pipe(
-      map(r => r.data),
-      tap(u => this.setCurrentUser(u))
+    return this.http.get<ApiResponse<SimpleUser> | SimpleUser>(`${this.api}/users/me`).pipe(
+      map(r => (r as any)?.data ?? r),
+      tap(u => this.setCurrentUser(u as SimpleUser))
     );
   }
 
-  /** ĐÚNG: gọi BE xoá session OAuth2, rồi xoá JWT + cache ở FE */
+  /** Logout: xoá server session (nếu có) + JWT + cache FE */
   logout(silent = false){
     this.http.post('/api/auth/logout', {}, { withCredentials: true, responseType: 'text' as 'json' })
       .pipe(catchError(() => of(null)))
@@ -111,7 +106,7 @@ export class AuthService {
     return !!this._user$.value?.roles?.includes(role);
   }
 
-  // ===== Google OAuth2 =====
+  // Google OAuth2
   googleLogin(): void {
     const base = environment.apiBase || 'http://localhost:8080';
     window.location.href = `${base}/oauth2/authorization/google`;

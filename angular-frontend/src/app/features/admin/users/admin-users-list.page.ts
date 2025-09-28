@@ -65,6 +65,12 @@ import { User } from '../../../core/models/user.model';
     .card{ @apply rounded-2xl border border-slate-200 bg-white shadow-sm; }
     .inp{ @apply rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200; }
     .btn{ @apply inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50; }
+    .icon-btn{ @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white
+           hover:bg-slate-50 active:scale-[0.98] transition
+           focus:outline-none focus:ring-2 focus:ring-rose-300; }
+.icon-btn-rose{ @apply text-rose-600 border-rose-200 hover:bg-rose-50; }
+.icon{ @apply w-5 h-5 pointer-events-none select-none; }
+
   `]
 })
 export class AdminUsersListPageComponent implements OnInit {

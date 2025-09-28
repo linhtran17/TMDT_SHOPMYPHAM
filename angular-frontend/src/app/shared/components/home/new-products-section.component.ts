@@ -7,7 +7,6 @@ import { ProductResponse } from '../../../core/models/product.model';
 import { ProductCardComponent, ProductCardData } from '../product-card.component'; // ✅ đúng path
 
 type PageAny<T> = { items?: T[]; content?: T[]; total?: number };
-
 @Component({
   standalone: true,
   selector: 'app-new-products-section',
@@ -20,12 +19,16 @@ type PageAny<T> = { items?: T[]; content?: T[]; total?: number };
     .head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:12px; }
     .title{ font-weight:900; font-size:20px; color:#0f172a; }
     .sub{ font-size:13px; color:#64748b; }
+
+    /* ✅ 4 thẻ / hàng */
     .gridp{
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap:16px;
       align-items:stretch;
     }
+.gridp{ grid-template-columns: repeat(4, minmax(240px, 1fr)); }
+
     .mt{ margin-top:8px; color:#64748b; font-size:13px; }
   `],
   template: `

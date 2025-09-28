@@ -141,10 +141,12 @@ import { WishlistService } from '../../../core/services/wishlist.service';
           </button>
 
           <div *ngIf="acctOpen()" class="dropdown">
-            <a class="menu-item" routerLink="/orders" (click)="closeAll()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h10l2 2v14l-2 2H7l-2-2V5l2-2z"/><path d="M9 7h6M9 11h6M9 15h6"/></svg>
-              <span>Đơn hàng</span>
-            </a>
+           <a class="menu-item" routerLink="/account" (click)="closeAll()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M7 3h10l2 2v14l-2 2H7l-2-2V5l2-2z"/><path d="M9 7h6M9 11h6M9 15h6"/>
+  </svg>
+  <span>Tài khoản & Đơn hàng</span>
+</a>
             <a *ngIf="isAdmin(u)" class="menu-item" routerLink="/admin" (click)="closeAll()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"/></svg>
               <span>Quản trị</span>
@@ -235,7 +237,6 @@ import { WishlistService } from '../../../core/services/wishlist.service';
       <a routerLink="/news" routerLinkActive="bg-white/10" class="nav-item">Tin tức</a>
       <a routerLink="/about" routerLinkActive="bg-white/10" class="nav-item">Giới thiệu</a>
       <a routerLink="/contact" routerLinkActive="bg-white/10" class="nav-item">Liên hệ</a>
-      <a routerLink="/orders" routerLinkActive="bg-white/10" class="nav-item">Tra cứu đơn hàng</a>
       <a routerLink="/coupons" routerLinkActive="bg-white/10" class="nav-item">Mã giảm giá</a>
 
     </nav>

@@ -38,8 +38,9 @@ export const routes: Routes = [
       { path: 'news/:slug', loadComponent: () => import('./features/public/news/news-detail.component').then(m => m.NewsDetailComponent) },
       { path: 'about', loadComponent: () => import('./shared/components/about/about-page.component').then(m => m.AboutPageComponent) },
       { path: 'contact', loadComponent: () => import('./features/public/contact/contact-page.component').then(m => m.ContactPageComponent) },
-      { path: 'orders', loadComponent: () => import('./features/public/orders/my-orders.page').then(m => m.MyOrdersPage), canActivate: [authGuard] },
-      { path: 'account', loadComponent: () => import('./features/public/account/account.page').then(m => m.AccountPage) },
+      { path: 'account', loadComponent: () => import('./features/public/account/account.page').then(m => m.AccountPage), canActivate: [authGuard] },
+      { path: 'account/edit', loadComponent: () => import('./features/public/account/account-edit.page.ts').then(m => m.default), canActivate: [authGuard] },
+
 
       // Cần đăng nhập
       { path: 'cart', loadComponent: () => import('./features/public/cart/cart.page').then(m => m.CartPage), canActivate: [authGuard] },
@@ -58,6 +59,9 @@ export const routes: Routes = [
       { path: 'products', loadComponent: () => import('./features/admin/products/admin-products-list.page').then(m => m.AdminProductsListPageComponent) },
       { path: 'products/new', loadComponent: () => import('./features/admin/products/admin-product-form.page').then(m => m.AdminProductFormPageComponent) },
       { path: 'products/:id/edit', loadComponent: () => import('./features/admin/products/admin-product-form.page').then(m => m.AdminProductFormPageComponent) },
+  { path: 'coupons', loadComponent: () => import('./features/admin/coupons/admin-coupons-list.page').then(m => m.default) },
+    { path: 'coupons/new', loadComponent: () => import('./features/admin/coupons/admin-coupon-form.page').then(m => m.default) },
+    { path: 'coupons/:id/edit', loadComponent: () => import('./features/admin/coupons/admin-coupon-form.page').then(m => m.default) },
 
       { path: 'categories', loadComponent: () => import('./features/admin/category/admin-category-list.page').then(m => m.AdminCategoryListPageComponent) },
       { path: 'banners', loadComponent: () => import('./features/admin/banners/admin-banners-list.page').then(m => m.AdminBannersListPageComponent) },

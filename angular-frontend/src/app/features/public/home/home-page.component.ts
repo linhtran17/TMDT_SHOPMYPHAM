@@ -37,7 +37,7 @@ import { RootCategoriesStripComponent } from '../../../shared/components/home/ro
       </app-flash-deals-carousel>
     </section>
 
-    <section class="container px-4 pt-4 pb-6">
+    <section class="container px-3 pt-3 pb-5">
       <app-new-products-section></app-new-products-section>
     </section>
 

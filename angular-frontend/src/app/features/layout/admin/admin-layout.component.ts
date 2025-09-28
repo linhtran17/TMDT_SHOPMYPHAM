@@ -100,6 +100,13 @@ import { AuthService, SimpleUser } from '../../../core/services/auth.service';
   </svg>
   Flash sale
 </a>
+<a routerLink="/admin/coupons" routerLinkActive="active" class="item group">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <path d="M4 7a2 2 0 012-2h8l2 2h2a2 2 0 012 2v2a2 2 0 010 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2a2 2 0 010-4V9a2 2 0 012-2z"/>
+    <path d="M9 9l6 6M12 8v.01M12 16v.01"/>
+  </svg>
+  Mã giảm giá
+</a>
 
 
         <a routerLink="/admin/news" routerLinkActive="active" class="item group">

@@ -13,9 +13,9 @@ export type ProductCardData = {
   name: string;
   price: number;
   salePrice?: number | null;
-  images?: any[];            // <-- có thể là string[] hoặc [{url: string}]
+  images?: any[];
   inStock?: boolean;
-  stock?: number;            // NEW: số lượng tồn (nếu có thì hiển thị chip)
+  stock?: number;
   badge?: string | null;
   routerLinkTo?: any[] | string;
   variantId?: number | null;
@@ -27,58 +27,80 @@ export type ProductCardData = {
   standalone: true,
   imports: [CommonModule, RouterLink],
   styles: [`
-    .pcard{ position:relative; border:1px solid #ffdbe7; background:#fff; border-radius:16px;
-            overflow:hidden; transition:.15s; width:100%; height:100%; box-sizing:border-box; }
+    :host{ display:block; }
+    .pcard{
+      position:relative; border:1px solid #ffdbe7; background:#fff; border-radius:14px;
+      overflow:hidden; transition:.15s; width:100%; height:100%; box-sizing:border-box;
+    }
     .pcard:hover{ box-shadow:0 8px 18px rgba(244,63,94,.12); transform: translateY(-1px); }
 
     .img-wrap{ position:relative; }
-    .img{ width:100%; height:208px; object-fit:cover; background:#fff1f5; display:block; }
-    .img2{ position:absolute; inset:0; width:100%; height:208px; object-fit:cover; opacity:0; transition:opacity .2s; }
+    .img{ width:100%; height:var(--img-h,192px); object-fit:cover; background:#fff1f5; display:block; }
+    .img2{ position:absolute; inset:0; width:100%; height:var(--img-h,192px); object-fit:cover; opacity:0; transition:opacity .2s; }
     .pcard:hover .img2{ opacity:1; }
 
-    .badge{ position:absolute; left:10px; top:10px; background:#f43f5e; color:#fff; font-size:12px;
-            font-weight:800; padding:2px 10px; border-radius:999px; box-shadow:0 6px 14px rgba(244,63,94,.18); }
-    .discount{ position:absolute; right:10px; top:10px; font-weight:800; font-size:12px; color:#f43f5e;
-               background:#fff; border:1px solid #fecdd3; border-radius:999px; padding:4px 8px; box-shadow:0 6px 14px rgba(0,0,0,.06); }
+    .badge{ position:absolute; left:8px; top:8px; background:#f43f5e; color:#fff; font-size:11px;
+            font-weight:800; padding:2px 8px; border-radius:999px; box-shadow:0 6px 14px rgba(244,63,94,.18); }
+    .discount{ position:absolute; right:8px; top:8px; font-weight:800; font-size:11px; color:#f43f5e;
+               background:#fff; border:1px solid #fecdd3; border-radius:999px; padding:3px 7px; box-shadow:0 6px 14px rgba(0,0,0,.06); }
 
-    /* ❤️ */
-    .wish{ position:absolute; right:10px; bottom:10px; width:34px; height:34px; border-radius:999px;
+    .wish{ position:absolute; right:8px; bottom:8px; width:30px; height:30px; border-radius:999px;
            display:grid; place-items:center; background:#fff; border:1px solid #fecdd3;
            box-shadow:0 8px 16px rgba(0,0,0,.06); cursor:pointer; }
-    .wish svg{ width:18px; height:18px; }
+    .wish svg{ width:16px; height:16px; }
     .wish--on{ border-color:#f43f5e; }
     .wish--on svg path{ fill:#f43f5e; }
 
-    /* Chip tồn kho */
-    .stock-chip{ position:absolute; left:10px; bottom:10px; display:inline-flex; align-items:center; gap:6px;
-                 border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; background:#fff;
+    .stock-chip{ position:absolute; left:8px; bottom:8px; display:inline-flex; align-items:center; gap:6px;
+                 border-radius:999px; padding:3px 8px; font-size:11px; font-weight:700; background:#fff;
                  border:1px solid #fecdd3; box-shadow:0 6px 14px rgba(0,0,0,.05); }
     .stock--ok{ color:#065f46; border-color:#a7f3d0; background:#ecfdf5; }
     .stock--low{ color:#92400e; border-color:#fed7aa; background:#fffbeb; }
     .stock--out{ color:#991b1b; border-color:#fecaca; background:#fef2f2; }
 
-    .name{ padding:8px 12px 0; font-weight:600; line-height:1.25;
-           display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:40px; }
-    .row{ display:flex; align-items:center; justify-content:space-between; padding:8px 12px 12px; gap:8px; }
-    .now{ color:#e11d48; font-weight:800; }
-    .old{ color:#94a3b8; text-decoration:line-through; margin-left:6px; }
+    .name{
+      padding:6px 10px 0; font-weight:600; line-height:1.25; overflow:hidden;
+      display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:var(--name-lines,1);
+      min-height:calc(18px * var(--name-lines,1) + 6px); font-size:14px;
+    }
+    .row{ display:flex; align-items:center; justify-content:space-between; padding:6px 10px 10px; gap:6px; }
+    .now{ color:#e11d48; font-weight:800; font-size:14px; }
+    .old{ color:#94a3b8; text-decoration:line-through; margin-left:6px; font-size:12px; }
 
-    .btn{ font-size:12px; padding:8px 10px; border-radius:10px; border:1px solid #fecdd3; background:#fff; }
+    .btn{ font-size:11px; padding:6px 8px; border-radius:8px; border:1px solid #fecdd3; background:#fff; }
     .btn-primary{ background:#f43f5e; border-color:#f43f5e; color:#fff; }
     .btn[disabled]{ opacity:.6; cursor:not-allowed; }
+
+    /* Compact tweaks (auto bật) */
+    .pcard.compact .img,
+    .pcard.compact .img2 { height:var(--img-h,176px); }
+    .pcard.compact .name{ font-size:13px; padding:6px 8px 0; min-height:calc(17px * var(--name-lines,1) + 6px); }
+    .pcard.compact .row{ padding:6px 8px 10px; gap:6px; }
+    .pcard.compact .now{ font-size:13px; }
+    .pcard.compact .old{ font-size:11px; }
+    .pcard.compact .btn{ font-size:10.5px; padding:5px 8px; border-radius:7px; }
+    .pcard.compact .badge{ font-size:10px; padding:2px 7px; left:6px; top:6px; }
+    .pcard.compact .discount{ font-size:10px; padding:2px 6px; right:6px; top:6px; }
+    .pcard.compact .wish{ width:28px; height:28px; right:6px; bottom:6px; }
+    .pcard.compact .wish svg{ width:15px; height:15px; }
+    .pcard.compact .stock-chip{ font-size:10.5px; padding:2px 7px; left:6px; bottom:6px; }
 
     .shimmer { background: linear-gradient(90deg,#f6f7f8 25%,#edeef1 37%,#f6f7f8 63%); background-size: 400% 100%; animation: shimmer 1.2s infinite; }
     @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
   `],
   template: `
-  <div class="pcard" [class.opacity-60]="!isAvailable && !loading">
+  <div class="pcard" [class.compact]="compact"
+       [style.minWidth.px]="cardMinWidth"
+       [style.--img-h.px]="imgHeight"
+       [style.--name-lines]="nameLines"
+       [class.opacity-60]="!isAvailable && !loading">
     <!-- Loading -->
     <ng-container *ngIf="loading; else real">
       <div class="img shimmer"></div>
-      <div class="name shimmer" style="height:38px;border-radius:8px;margin:8px 12px 0"></div>
+      <div class="name shimmer" style="height:32px;border-radius:8px;margin:6px 10px 0"></div>
       <div class="row">
-        <div class="shimmer" style="height:18px;width:80px;border-radius:8px"></div>
-        <div class="shimmer" style="height:30px;width:96px;border-radius:10px"></div>
+        <div class="shimmer" style="height:16px;width:70px;border-radius:8px"></div>
+        <div class="shimmer" style="height:28px;width:86px;border-radius:8px"></div>
       </div>
     </ng-container>
 
@@ -88,8 +110,7 @@ export type ProductCardData = {
         <a *ngIf="product?.routerLinkTo || routerLinkTo; else imgOnly"
            [routerLink]="product?.routerLinkTo || routerLinkTo" class="block relative">
           <img class="img"  [src]="image(0)" [alt]="product?.name || 'product'" (error)="onImgErr($event)">
-          <img class="img2" *ngIf="hasSecondImage" [src]="image(1)" [alt]="product?.name || 'product'"
-               (error)="hideSecond($event)">
+          <img class="img2" *ngIf="hasSecondImage" [src]="image(1)" [alt]="product?.name || 'product'" (error)="hideSecond($event)">
           <span *ngIf="product?.badge" class="badge">{{ product?.badge }}</span>
           <span *ngIf="discountPct>0" class="discount">-{{ discountPct }}%</span>
           <span class="stock-chip" [ngClass]="stockClass" *ngIf="showStockChip">{{ stockLabel }}</span>
@@ -99,8 +120,7 @@ export type ProductCardData = {
         </a>
         <ng-template #imgOnly>
           <img class="img"  [src]="image(0)" [alt]="product?.name || 'product'" (error)="onImgErr($event)">
-          <img class="img2" *ngIf="hasSecondImage" [src]="image(1)" [alt]="product?.name || 'product'"
-               (error)="hideSecond($event)">
+          <img class="img2" *ngIf="hasSecondImage" [src]="image(1)" [alt]="product?.name || 'product'" (error)="hideSecond($event)">
           <span *ngIf="product?.badge" class="badge">{{ product?.badge }}</span>
           <span *ngIf="discountPct>0" class="discount">-{{ discountPct }}%</span>
           <span class="stock-chip" [ngClass]="stockClass" *ngIf="showStockChip">{{ stockLabel }}</span>
@@ -143,6 +163,12 @@ export class ProductCardComponent {
   @Input() routerLinkTo?: any[] | string;
   @Input() autoAddToCart = true;
   @Input() showStock = true;
+
+  /** 🔧 Điều khiển kích thước thẻ */
+  @Input() compact = true;             // ✅ mặc định thu gọn
+  @Input() cardMinWidth = 240;         // 🔽 từ 300 -> 240
+  @Input() imgHeight = 176;            // 🔽 từ 236 -> 176
+  @Input() nameLines: 1 | 2 = 1;
 
   @Output() addToCart = new EventEmitter<ProductCardData>();
   @Output() view = new EventEmitter<ProductCardData>();
@@ -206,14 +232,12 @@ export class ProductCardComponent {
 
   // ====== Ảnh ======
   placeholder = 'assets/img/placeholder.svg';
-
   private normalizeUrl(val?: any): string | undefined {
     if (!val) return undefined;
     if (typeof val === 'string') return val;
     if (typeof val === 'object' && val.url) return val.url as string;
     return undefined;
   }
-
   private resolveImg(url?: string){
     if(!url) return this.placeholder;
     if(/^https?:\/\//i.test(url)) return url;
@@ -221,13 +245,11 @@ export class ProductCardComponent {
     const rel=url.startsWith('/')?url:`/${url}`;
     return `${base}${rel}`;
   }
-
   image(i = 0, raw = false){
     const val = this.normalizeUrl(this.product?.images?.[i]);
-    if (raw) return val;              // dùng để check tồn tại ảnh 2
+    if (raw) return val;
     return this.resolveImg(val);
   }
-
   onImgErr(e: Event){ (e.target as HTMLImageElement).src = this.placeholder; }
   hideSecond(e: Event){ (e.target as HTMLImageElement).style.display = 'none'; }
 

@@ -1,35 +1,22 @@
-// src/app/features/account/account.page.ts
+// src/app/features/public/account/account.page.ts
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { ApiService } from '../../../core/services/api.service';   // ✅ dùng chung để gọi /api/me và /api/orders
+import { Router, RouterLink } from '@angular/router';
+
+import { AuthService, SimpleUser } from '../../../core/services/auth.service';
+import { OrderService } from '../../../core/services/order.service';
 import { environment } from '../../../../environments/environment';
 
 type OrderStatus = 'PENDING'|'CONFIRMED'|'PROCESSING'|'SHIPPED'|'DELIVERED'|'CANCELLED';
 type PaymentStatus = 'pending'|'paid'|'failed';
 
-interface MeDto {
-  id: number;
-  fullName: string;
-  email: string;
-  phone?: string | null;
-  address?: string | null;
-  avatarUrl?: string | null;
-  createdAt?: string;
-}
-
 interface OrderRow {
   id: number;
   orderCode: string;
-  createdAt: string;
+  createdAt: string | Date;
   totalAmount: number;
   status: OrderStatus;
   paymentStatus: PaymentStatus | string;
-}
-
-interface PageResult<T> {
-  items: T[];
-  total: number;
 }
 
 @Component({
@@ -41,7 +28,7 @@ interface PageResult<T> {
     .grid{ display:grid; grid-template-columns:1fr; gap:18px; }
     @media(min-width:980px){ .grid{ grid-template-columns:280px 1fr; } }
 
-    .card{ background:#fff; border:1px solid #e5e7eb; border-radius:18px; padding:18px; }
+    .card{ background:#fff; border:1px solid #ffe4e6; border-radius:18px; padding:18px; }
     .side .item{ display:block; padding:10px 12px; border-radius:10px; color:#334155; }
     .side .item.active{ background:#fff1f2; color:#be123c; font-weight:700; }
 
@@ -65,7 +52,8 @@ interface PageResult<T> {
     .btn{ padding:6px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; }
     .btn[disabled]{ opacity:.5; cursor:not-allowed; }
 
-    /* skeleton */
+    .danger{ background:#fee2e2; border-color:#fecaca; color:#991b1b; }
+
     .srow{ height:14px; border-radius:6px; background:linear-gradient(90deg,#f6f7f8 25%,#edeef1 37%,#f6f7f8 63%); background-size:400% 100%; animation:sh 1.2s infinite; }
     @keyframes sh{ 0%{background-position:100% 0} 100%{background-position:-100% 0} }
   `],
@@ -79,9 +67,9 @@ interface PageResult<T> {
       <!-- Sidebar -->
       <aside class="card side">
         <div class="ttl">Trang tài khoản</div>
-        <a class="item active">Thông tin tài khoản</a>
-        <a class="item">Đơn hàng của tôi</a>
-        <a class="item" routerLink="/logout">Đăng xuất</a>
+        <a class="item active">Tổng quan</a>
+        <a class="item" (click)="scrollTo('orders')">Đơn hàng</a>
+        <button class="item danger w-full text-left" (click)="logout()">Đăng xuất</button>
       </aside>
 
       <!-- Content -->
@@ -90,21 +78,22 @@ interface PageResult<T> {
         <section class="card">
           <div class="ttl">Tài khoản</div>
 
-          <ng-container *ngIf="!loadingMe(); else meSk">
+          <ng-container *ngIf="user(); else meSk">
             <div class="flex items-center gap-4 mb-4">
               <img class="avatar" [src]="avatar()" (error)="onImgErr($event)" alt="avatar">
               <div>
-                <div class="text-lg font-semibold">{{ me()?.fullName || '—' }}</div>
-                <div class="text-sm muted">Tham gia: {{ me()?.createdAt | date:'shortDate' }}</div>
+                <div class="text-lg font-semibold">{{ user()?.fullName || user()?.email }}</div>
+                <div class="text-sm muted">Tham gia: {{ user()?.createdAt | date:'shortDate' }}</div>
               </div>
             </div>
 
-            <div class="row"><div class="muted">Email</div><div>{{ me()?.email }}</div></div>
-            <div class="row"><div class="muted">Điện thoại</div><div>{{ me()?.phone || '—' }}</div></div>
-            <div class="row"><div class="muted">Địa chỉ</div><div>{{ me()?.address || '—' }}</div></div>
+            <div class="row"><div class="muted">Email</div><div>{{ user()?.email }}</div></div>
+            <div class="row"><div class="muted">Điện thoại</div><div>{{ user()?.phone || '—' }}</div></div>
+            <div class="row"><div class="muted">Địa chỉ</div><div>{{ user()?.address || '—' }}</div></div>
 
-            <div class="mt-3">
+            <div class="mt-3 flex gap-2">
               <a routerLink="/account/edit" class="btn">Chỉnh sửa thông tin</a>
+              <button class="btn danger" (click)="logout()">Đăng xuất</button>
             </div>
           </ng-container>
 
@@ -123,7 +112,7 @@ interface PageResult<T> {
         </section>
 
         <!-- Đơn hàng -->
-        <section class="card">
+        <section class="card" id="orders">
           <div class="ttl">Đơn hàng của bạn</div>
 
           <ng-container *ngIf="!loadingOrders(); else odSk">
@@ -142,7 +131,7 @@ interface PageResult<T> {
                 <tbody>
                   <tr *ngFor="let o of rows()">
                     <td><b>#{{ o.orderCode }}</b></td>
-                    <td>{{ o.createdAt | date:'short' }}</td>
+                    <td>{{ o.createdAt | date:'short':'Asia/Ho_Chi_Minh' }}</td>
                     <td class="money text-right">{{ o.totalAmount | number:'1.0-0' }} đ</td>
                     <td><span class="chip" [ngClass]="payChip(o.paymentStatus)">{{ payText(o.paymentStatus) }}</span></td>
                     <td><span class="chip" [ngClass]="shipChip(o.status)">{{ shipText(o.status) }}</span></td>
@@ -176,13 +165,13 @@ interface PageResult<T> {
   `
 })
 export class AccountPage {
-  private api = inject(ApiService);
+  private auth = inject(AuthService);
+  private orderApi = inject(OrderService);
+  private router = inject(Router);
 
   // ===== state
-  loadingMe = signal(true);
+  user = signal<SimpleUser | null>(this.auth.userSnapshot());
   loadingOrders = signal(true);
-
-  me = signal<MeDto | null>(null);
 
   page = signal(0);
   size = signal(10);
@@ -191,35 +180,31 @@ export class AccountPage {
 
   placeholder = 'assets/img/placeholder.svg';
 
-  constructor(){ this.loadMe(); this.loadOrders(); }
-
-  // ===== API calls
-  private loadMe(){
-    // Nếu bạn có AuthService.me() thì thay bằng nó.
-    this.loadingMe.set(true);
-    this.api.get<any>('/api/me').subscribe({
-      next: (r:any) => { this.me.set(r?.data ?? r ?? null); this.loadingMe.set(false); },
-      error: () => this.loadingMe.set(false)
-    });
+  constructor(){
+    // đảm bảo có user (F5)
+    if (!this.user()) {
+      this.auth.fetchMe().subscribe({
+        next: u => this.user.set(u),
+        error: () => this.user.set(null)
+      });
+    }
+    this.loadOrders();
   }
 
+  // ===== API calls
   private loadOrders(){
     this.loadingOrders.set(true);
-    const p = this.page(), s = this.size();
-    this.api.get<any>('/api/orders', { mine: 1, page: p, size: s }).subscribe({
-      next: (r:any) => {
-        const data = r?.data ?? r;
-        const items = data?.items ?? data?.content ?? data ?? [];
-        const total = Number(data?.total ?? data?.totalElements ?? items.length);
-        this.rows.set((items as any[]).map(x => ({
+    this.orderApi.listMine(this.page(), this.size()).subscribe({
+      next: (p) => {
+        this.rows.set((p.items || []).map(x => ({
           id: x.id,
           orderCode: x.orderCode,
           createdAt: x.createdAt,
           totalAmount: x.totalAmount,
-          status: String(x.status || 'PENDING').toUpperCase() as OrderStatus,
+          status: (String(x.status || 'pending').toUpperCase() as OrderStatus),
           paymentStatus: String(x.paymentStatus || 'pending').toLowerCase()
         })));
-        this.total.set(total);
+        this.total.set(p.total || 0);
         this.loadingOrders.set(false);
       },
       error: () => { this.rows.set([]); this.total.set(0); this.loadingOrders.set(false); }
@@ -227,19 +212,19 @@ export class AccountPage {
   }
 
   // ===== pagination
-  totalPages = computed(() => Math.max(1, Math.ceil(this.total()/this.size())));
-  next(){ if (this.page()+1 < this.totalPages()){ this.page.set(this.page()+1); this.loadOrders(); } }
-  prev(){ if (this.page()>0){ this.page.set(this.page()-1); this.loadOrders(); } }
+  totalPages = computed(() => Math.max(1, Math.ceil(this.total() / this.size())));
+  next(){ if (this.page() + 1 < this.totalPages()){ this.page.update(v => v + 1); this.loadOrders(); } }
+  prev(){ if (this.page() > 0){ this.page.update(v => v - 1); this.loadOrders(); } }
 
   // ===== helpers
   private resolveImg(url?: string|null){
     if (!url) return this.placeholder;
     if (/^https?:\/\//i.test(url)) return url;
     const base = (environment.apiBase||'').replace(/\/+$/,'');
-    const rel  = url.startsWith('/') ? url : `/${url}`;
+    const rel  = (url||'').startsWith('/') ? url : `/${url}`;
     return `${base}${rel}`;
   }
-  avatar(){ return this.resolveImg(this.me()?.avatarUrl || undefined); }
+  avatar(){ return this.resolveImg(this.user()?.avatarUrl || undefined); }
   onImgErr(e: Event){ (e.target as HTMLImageElement).src = this.placeholder; }
 
   payText(v:any){ return String(v||'pending').toLowerCase()==='paid' ? 'Đã thanh toán' : 'Chưa thanh toán'; }
@@ -262,5 +247,15 @@ export class AccountPage {
     if (v==='CANCELLED') return 'bad';
     if (v==='PENDING' || v==='PROCESSING' || v==='SHIPPED') return 'warn';
     return 'info';
+  }
+
+  scrollTo(id: string){
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  logout(){
+    this.auth.logout(false);
+    this.router.navigateByUrl('/');
   }
 }
