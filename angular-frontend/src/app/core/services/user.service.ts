@@ -1,4 +1,3 @@
-// src/app/core/services/user.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
@@ -49,8 +48,8 @@ export class UserService {
 
   deleteUser(id: number){ return this.http.delete<void>(`${this.base}/users/${id}`); }
 
-  /** ✅ SELF UPDATE đúng spec BE: PUT /api/me */
+  /** ✅ SELF UPDATE đúng spec BE: PUT /api/users/me */
   updateMe(body: { fullName?: string; phone?: string; address?: string; avatarUrl?: string }) {
-    return this.http.put<void>(`${this.base}/me`, body);
+    return this.http.put<void>(`${this.base}/users/me`, body);
   }
 }

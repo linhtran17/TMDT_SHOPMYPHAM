@@ -6,8 +6,7 @@ import { environment } from '../../../environments/environment';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
-  const token = auth.token || localStorage.getItem('token') || '';
-
+  const token = auth.token || '';
   // Tạo URL tuyệt đối để kiểm tra tiền tố /api
   const abs = (() => {
     try { return new URL(req.url, window.location.origin).toString(); }
@@ -23,7 +22,6 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (token && isApi) {
     req = req.clone({
       setHeaders: { Authorization: `Bearer ${token}` },
-      // withCredentials: true, // chỉ bật nếu bạn dùng cookie cross-site
     });
   }
   return next(req);

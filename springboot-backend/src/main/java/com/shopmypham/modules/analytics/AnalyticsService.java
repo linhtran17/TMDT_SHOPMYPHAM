@@ -20,6 +20,7 @@ public class AnalyticsService {
   private final InventoryMovementRepository invRepo;
   private final ProductRepository productRepo;
   private final CouponUsageRepository couponUsageRepo;
+  
 
   private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 

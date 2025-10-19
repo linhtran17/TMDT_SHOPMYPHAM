@@ -43,6 +43,13 @@ public class CartService {
   private ProductVariant findVariant(Long id){
     return variantRepo.findById(id).orElseThrow(() -> new NotFoundException("Biến thể không tồn tại"));
   }
+   private int availableOf(Long productId, Long variantId){
+    Integer raw = (variantId != null)
+        ? invRepo.variantQty(variantId)
+        : invRepo.productQty(productId);
+    return Math.max(0, Optional.ofNullable(raw).orElse(0));
+  }
+
 
   // ===== API ops =====
 
@@ -61,9 +68,20 @@ public class CartService {
     }
 
     var cart = getOrCreateCart(userId);
+ var existed = itemRepo.findByCartIdAndProductIdAndVariantId(
+        cart.getId(), product.getId(), variantId).orElse(null);
+   int available = availableOf(product.getId(), variantId);
+    int currentInCart = existed != null ? existed.getQuantity() : 0;
+    int after = currentInCart + Math.max(1, req.getQty());
 
-    // gộp dòng
-    var existed = itemRepo.findByCartIdAndProductIdAndVariantId(cart.getId(), product.getId(), variantId).orElse(null);
+    if (after > available){
+      throw new BadRequestException(
+          available > 0
+              ? ("Chỉ còn " + available + " sản phẩm trong kho")
+              : "Sản phẩm đã hết hàng");
+    }
+
+
     if (existed != null){
       existed.setQuantity(existed.getQuantity() + req.getQty());
       itemRepo.save(existed);
@@ -82,16 +100,16 @@ public class CartService {
   public void updateQty(Long userId, Long itemId, int qty){
     if (qty < 1) throw new BadRequestException("Số lượng tối thiểu 1");
     var cart = mustGetCart(userId); // ✅ không tạo mới
-    var it = itemRepo.findById(itemId).orElseThrow(() -> new NotFoundException("Item không tồn tại"));
-    if (!Objects.equals(it.getCartId(), cart.getId())) throw new BadRequestException("Item không thuộc giỏ này");
+    var it = itemRepo.findById(itemId).orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
+    if (!Objects.equals(it.getCartId(), cart.getId())) throw new BadRequestException("Sản phẩm không thuộc giỏ này");
     it.setQuantity(qty);
   }
 
   @Transactional
   public void removeItem(Long userId, Long itemId){
     var cart = mustGetCart(userId); // ✅ không tạo mới
-    var it = itemRepo.findById(itemId).orElseThrow(() -> new NotFoundException("Item không tồn tại"));
-    if (!Objects.equals(it.getCartId(), cart.getId())) throw new BadRequestException("Item không thuộc giỏ này");
+    var it = itemRepo.findById(itemId).orElseThrow(() -> new NotFoundException("Sản phẩm không tồn tại"));
+    if (!Objects.equals(it.getCartId(), cart.getId())) throw new BadRequestException("Sản phẩm không thuộc giỏ này");
     itemRepo.deleteById(itemId);
   }
 

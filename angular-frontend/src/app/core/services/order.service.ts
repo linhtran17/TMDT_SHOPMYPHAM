@@ -17,7 +17,7 @@ export class OrderService {
   private fixDate<T extends { createdAt?: any; updatedAt?: any }>(x: T): T {
     const toMs = (v: any) => {
       if (v == null) return v;
-      if (typeof v === 'number') {
+    if (typeof v === 'number') {
         // nếu là epoch seconds -> đổi sang ms
         return v < 1e12 ? v * 1000 : v;
       }
@@ -59,7 +59,16 @@ export class OrderService {
       .post<ApiResponse<CheckoutResponse>>(`${this.base}/api/orders/checkout`, req)
       .pipe(map(r => r.data));
   }
+createPayOSLink(orderId: number) {
+  return this.http
+    .post<ApiResponse<any>>(`${this.base}/api/payments/payos/create/${orderId}`, {})
+    .pipe(map(r => r.data));
+}
 
+getOrderRaw(id: number) { // nếu cần poll trạng thái
+  return this.http.get<ApiResponse<any>>(`${this.base}/api/orders/${id}`)
+    .pipe(map(r => r.data));
+}
   get(id: number): Observable<Order> {
     return this.http
       .get<ApiResponse<Order>>(`${this.base}/api/orders/${id}`)

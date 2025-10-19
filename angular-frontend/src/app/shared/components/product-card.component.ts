@@ -87,6 +87,14 @@ export type ProductCardData = {
 
     .shimmer { background: linear-gradient(90deg,#f6f7f8 25%,#edeef1 37%,#f6f7f8 63%); background-size: 400% 100%; animation: shimmer 1.2s infinite; }
     @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+    .icon-add{
+  width:16px; height:16px; display:block;
+  /* Nếu icon nền tối cần trắng trên nút hồng, mở dòng dưới:
+  filter: brightness(0) invert(1);
+  */
+}
+.pcard.compact .icon-add{ width:15px; height:15px; }
+
   `],
   template: `
   <div class="pcard" [class.compact]="compact"
@@ -147,10 +155,23 @@ export type ProductCardData = {
           </ng-template>
         </div>
         <div class="flex items-center gap-2">
-          <button class="btn btn-primary" [disabled]="!isAvailable || adding" (click)="onAddClicked()">
-            <span *ngIf="adding">Đang thêm…</span>
-            <span *ngIf="!adding">{{ !isAvailable ? 'Hết hàng' : 'Thêm' }}</span>
-          </button>
+         <button class="btn btn-primary"
+        [disabled]="!isAvailable || adding"
+        (click)="onAddClicked()">
+  <ng-container *ngIf="adding">
+    Đang thêm…
+  </ng-container>
+  <ng-container *ngIf="!adding">
+    <ng-container *ngIf="isAvailable; else soldOut">
+      <img src="assets/icon/add-to-cart.png"
+           alt="Thêm vào giỏ"
+           class="icon-add"
+           width="16" height="16" />
+    </ng-container>
+    <ng-template #soldOut>Hết hàng</ng-template>
+  </ng-container>
+</button>
+
         </div>
       </div>
     </ng-template>

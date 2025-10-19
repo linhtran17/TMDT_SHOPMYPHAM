@@ -39,7 +39,7 @@ public class DevAdminInitializer implements CommandLineRunner {
 
     if (!userRepo.existsByEmail(adminEmail)) {
   var admin = new User();
-  admin.setFullName("Administrator");          // ✅ THÊM
+  admin.setFullName("Administrator");         
   admin.setEmail(adminEmail);
   admin.setPassword(encoder.encode(adminPassword));
   admin.setEnabled(true);

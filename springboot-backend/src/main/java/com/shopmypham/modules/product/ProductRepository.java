@@ -2,7 +2,8 @@ package com.shopmypham.modules.product;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -12,17 +13,10 @@ import java.util.List;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-  /**
-   * Tìm kiếm theo từ khóa + nhiều categoryId.
-   * - Khi không lọc danh mục: truyền noCatFilter=true (catIds có thể chứa “giá trị mồi”).
-   * - Khi lọc danh mục: truyền noCatFilter=false và catIds là danh sách id cần lọc.
-   *
-   * JPQL, để tận dụng entity-level cache và portable.
-   */
   @Query("""
     SELECT p FROM Product p
-    WHERE
-      (:noCatFilter = true OR p.categoryId IN :catIds)
+    WHERE (p.active = true OR p.active IS NULL)
+      AND ( :noCatFilter = true OR p.categoryId IN :catIds )
       AND (
            :q IS NULL OR :q = ''
            OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
@@ -35,17 +29,46 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                        @Param("noCatFilter") boolean noCatFilter,
                        Pageable pageable);
 
+  /**
+   * Lọc theo thuộc tính sản phẩm (ProductAttribute):
+   * - Nếu attrName null/empty -> bỏ qua lọc thuộc tính
+   * - Nếu attrName có, attrVal null/empty -> chấp nhận mọi giá trị của attrName đó
+   * - Nếu cả attrName & attrVal có -> LIKE theo value
+   */
+  @Query("""
+    SELECT DISTINCT p FROM Product p
+    LEFT JOIN ProductAttribute a ON a.product.id = p.id
+    WHERE (p.active = true OR p.active IS NULL)
+      AND ( :noCatFilter = true OR p.categoryId IN :catIds )
+      AND (
+           :q IS NULL OR :q = ''
+           OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
+           OR LOWER(COALESCE(p.sku, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+      )
+      AND (
+           :attrName IS NULL OR :attrName = ''
+           OR ( LOWER(a.name) = LOWER(:attrName)
+                AND ( :attrVal IS NULL OR :attrVal = '' OR LOWER(a.value) LIKE LOWER(CONCAT('%', :attrVal, '%')) )
+              )
+      )
+    ORDER BY p.id DESC
+  """)
+  Page<Product> searchWithAttr(@Param("q") String q,
+                               @Param("catIds") Collection<Long> catIds,
+                               @Param("noCatFilter") boolean noCatFilter,
+                               @Param("attrName") String attrName,
+                               @Param("attrVal") String attrVal,
+                               Pageable pageable);
+
   boolean existsBySku(String sku);
 
-  // Dùng trong CategoryService.delete()
   boolean existsByCategoryId(Long categoryId);
 
-  // Dùng cho admin thống kê
-  @Query(value =
-      "SELECT p.category_id, COUNT(p.id) " +
-      "FROM products p " +
-      "WHERE p.category_id IN (:ids) " +
-      "GROUP BY p.category_id",
-      nativeQuery = true)
+  @Query(value = """
+        SELECT p.category_id, COUNT(p.id)
+        FROM products p
+        WHERE p.category_id IN (:ids)
+        GROUP BY p.category_id
+      """, nativeQuery = true)
   List<Object[]> countByCategoryIds(@Param("ids") List<Long> ids);
 }

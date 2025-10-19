@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -127,4 +130,31 @@ public class InventoryService {
       repo.save(m);
     }
   }
+  // ===== Chat helpers (bulk stock for chatbot) =====
+
+@Transactional(readOnly = true)
+public Map<Long, Map<String,Object>> checkForChat(List<Long> productIds){
+  if (productIds == null || productIds.isEmpty()) return Map.of();
+
+  // Dùng bulk query có sẵn của repo: findProductStock(List<Long>)
+  var rows = repo.findProductStock(productIds); // InventoryMovementRepository.ProductStockRow
+
+  Map<Long, Map<String,Object>> out = new HashMap<>();
+  for (var r : rows){
+    long pid = r.getProductId();
+    int qty  = (r.getQty() == null) ? 0 : r.getQty();
+    out.put(pid, Map.of(
+        "inStock", qty > 0,
+        "qty", qty
+    ));
+  }
+
+  // Bổ sung những id không có record (xem như 0)
+  for (Long id : productIds){
+    out.putIfAbsent(id, Map.of("inStock", false, "qty", 0));
+  }
+  return out;
+}
+
+  
 }

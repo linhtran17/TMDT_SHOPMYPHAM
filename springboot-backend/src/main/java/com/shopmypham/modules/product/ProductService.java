@@ -48,11 +48,36 @@ public class ProductService {
 
     boolean noCatFilter = (ids == null || ids.isEmpty());
 
-    // Hibernate vẫn bind tham số dù nhánh OR “short-circuit”, nên an toàn nhất vẫn truyền 1 list không rỗng.
+    // Hibernate vẫn bind param dù nhánh OR “short-circuit”, nên an toàn vẫn truyền 1 list không rỗng.
     List<Long> catIdsParam = noCatFilter ? List.of(-1L) : ids;
 
     Page<Product> p = productRepo.search(keyword, catIdsParam, noCatFilter, pageable);
+    return mapPageToDto(p);
+  }
 
+  // === Search có lọc theo thuộc tính (ví dụ: Loại da = Dầu) ===
+  @Transactional(readOnly = true)
+  public PageResponse<ProductResponse> searchWithAttr(String q,
+                                                      Long categoryId,
+                                                      String catSlug,
+                                                      List<Long> childIds,
+                                                      String attrName,
+                                                      String attrVal,
+                                                      int page, int size) {
+    Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+    String keyword = (q == null || q.isBlank()) ? null : q.trim();
+
+    List<Long> ids = (childIds != null && !childIds.isEmpty())
+        ? childIds
+        : resolveCategoryIds(categoryId, catSlug);
+
+    boolean noCatFilter = (ids == null || ids.isEmpty());
+    List<Long> catIdsParam = noCatFilter ? List.of(-1L) : ids;
+
+    String an = (attrName == null || attrName.isBlank()) ? null : attrName.trim();
+    String av = (attrVal  == null || attrVal.isBlank())  ? null : attrVal.trim();
+
+    Page<Product> p = productRepo.searchWithAttr(keyword, catIdsParam, noCatFilter, an, av, pageable);
     return mapPageToDto(p);
   }
 
@@ -96,7 +121,7 @@ public class ProductService {
     var p = findById(id);
     validateCategory(req.getCategoryId());
     if (req.getSku()!=null && !req.getSku().isBlank()
-        && !req.getSku().equals(p.getSku()) && productRepo.existsBySku(req.getSku()))
+        && !Objects.equals(req.getSku(), p.getSku()) && productRepo.existsBySku(req.getSku()))
       throw new BadRequestException("SKU đã tồn tại");
     applyUpsertToEntity(p, req);
   }
@@ -145,7 +170,7 @@ public class ProductService {
     p.setHasVariants(Boolean.TRUE.equals(req.getHasVariants()));
 
     if (Boolean.TRUE.equals(req.getHasVariants())) {
-      // khi có biến thể: price là mốc (0 nếu null), salePrice null
+      // Khi có biến thể: price là mốc (0 nếu null), salePrice null
       p.setPrice(zeroIfNull(req.getPrice()));
       p.setSalePrice(null);
     } else {
@@ -361,11 +386,106 @@ public class ProductService {
         .build();
   }
 
+  // ===== Chat helpers (for chatbot) =====
+  @Transactional(readOnly = true)
+  public List<Map<String,Object>> listForChat(Map<String,Object> args) {
+    String q          = optStr(args.get("q"));
+    Long categoryId   = optLong(args.get("categoryId"));
+    String catSlug    = optStr(args.get("catSlug"));
+    @SuppressWarnings("unchecked")
+    List<Long> childIds = (List<Long>) args.getOrDefault("childIds", null);
+
+    Integer limit     = Optional.ofNullable(optInt(args.get("limit"))).orElse(5);
+    Integer priceMin  = optInt(args.get("priceMin"));   // (đơn vị: VND)
+    Integer priceMax  = optInt(args.get("priceMax"));
+
+    // NEW: attribute filters (ví dụ: "Loại da" / "Dầu")
+    String attrName   = optStr(args.get("attrName"));
+    String attrVal    = optStr(args.get("attrVal"));
+
+    PageResponse<ProductResponse> page = (attrName != null || attrVal != null)
+        ? searchWithAttr(q, categoryId, catSlug, childIds, attrName, attrVal, 0, Math.max(1, limit))
+        : search      (q, categoryId, catSlug, childIds, 0, Math.max(1, limit));
+
+    return page.getItems().stream()
+        // Lọc theo khoảng giá nếu có (dùng effectivePrice = salePrice nếu != null, ngược lại = price)
+        .filter(p -> withinPrice(p, priceMin, priceMax))
+        .map(p -> {
+          String image = (p.getImages()==null || p.getImages().isEmpty())
+              ? null
+              : p.getImages().get(0).getUrl();
+          boolean inStock = p.getStock()!=null && p.getStock() > 0;
+
+          Map<String,Object> card = new HashMap<>();
+          card.put("id",        p.getId());
+          card.put("name",      p.getName());
+          card.put("image",     image);
+          card.put("price",     toLong(p.getPrice()));
+          card.put("salePrice", toLong(p.getSalePrice()));
+          card.put("inStock",   inStock);
+          // TODO: đổi theo route FE thực tế (slug nếu có)
+          card.put("url",       "/product/" + p.getId());
+          return card;
+        })
+        .toList();
+  }
+
+  // ===== Chat helpers (build cards by product ids, keep input order) =====
+  @Transactional(readOnly = true)
+  public List<Map<String,Object>> cardsByProductIds(List<Long> productIds){
+    if (productIds == null || productIds.isEmpty()) return List.of();
+
+    List<Map<String,Object>> out = new ArrayList<>(productIds.size());
+    for (Long id : productIds){
+      try {
+        var p = get(id); // dùng hàm get(...) có sẵn → trả ProductResponse đầy đủ
+        String image = (p.getImages()==null || p.getImages().isEmpty())
+            ? null
+            : p.getImages().get(0).getUrl();
+        boolean inStock = p.getStock()!=null && p.getStock() > 0;
+
+        Map<String,Object> card = new HashMap<>();
+        card.put("id",        p.getId());
+        card.put("name",      p.getName());
+        card.put("image",     image);
+        card.put("price",     toLong(p.getPrice()));
+        card.put("salePrice", toLong(p.getSalePrice()));
+        card.put("inStock",   inStock);
+        card.put("url",       "/product/" + p.getId());   // nếu có slug thì thay ở đây
+        out.add(card);
+      } catch (Exception ignore) {
+        // sản phẩm không tồn tại/đã xoá → bỏ qua id này
+      }
+    }
+    return out;
+  }
+
+  private static String optStr(Object o){
+    return (o==null) ? null : String.valueOf(o).trim();
+  }
+  private static Long optLong(Object o){
+    try { return (o==null) ? null : Long.valueOf(String.valueOf(o)); }
+    catch (Exception e){ return null; }
+  }
+  private static Integer optInt(Object o){
+    try { return (o==null) ? null : Integer.valueOf(String.valueOf(o)); }
+    catch (Exception e){ return null; }
+  }
+  private static Long toLong(BigDecimal x){
+    return x==null ? null : x.longValue();
+  }
+  private static boolean withinPrice(ProductResponse p, Integer min, Integer max){
+    BigDecimal eff = (p.getSalePrice()!=null) ? p.getSalePrice() : p.getPrice();
+    if (eff == null) return true; // không có giá → không lọc
+    long v = eff.longValue();
+    if (min != null && v < min) return false;
+    if (max != null && v > max) return false;
+    return true;
+  }
+
   /**
-   * Gộp từ CategoryHierarchyService:
-   * - Nếu không truyền categoryId/catSlug -> trả về null (không lọc theo danh mục).
-   * - Nếu truyền danh mục (cha hoặc con) -> trả về id của chính nó + toàn bộ con cháu (DFS).
-   *   Lưu ý: dữ liệu của bạn đã enforce "product chỉ gắn vào lá", nên kết quả tương đương "toàn bộ lá dưới node".
+   * - Không truyền categoryId/catSlug -> trả về null (không lọc danh mục).
+   * - Nếu truyền danh mục (cha hoặc con) -> trả về id của nó + toàn bộ con cháu (DFS).
    */
   private List<Long> resolveCategoryIds(Long categoryId, String catSlug){
     Category root = null;

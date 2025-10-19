@@ -68,6 +68,7 @@ import { CouponValidateRequest, CouponValidateResponse } from '../../../core/mod
             <label>Phương thức thanh toán</label>
             <select name="paymentMethod" [(ngModel)]="model.paymentMethod">
               <option value="COD">COD (Thanh toán khi nhận hàng)</option>
+              <option value="PAYOS">Chuyển khoản PayOS (QR/Bank)</option>
             </select>
           </div>
 
@@ -92,7 +93,7 @@ import { CouponValidateRequest, CouponValidateResponse } from '../../../core/mod
 
           <div class="md:col-span-2 mt-2">
             <button class="btn-primary w-full" [disabled]="submitting || !f.form.valid || !itemIds.length">
-              Đặt hàng {{ itemIds.length ? '('+itemIds.length+' mục đã chọn)' : '' }}
+              {{ submitting ? 'Đang xử lý…' : 'Đặt hàng' }} {{ itemIds.length ? '('+itemIds.length+' mục đã chọn)' : '' }}
             </button>
           </div>
         </form>
@@ -116,8 +117,19 @@ import { CouponValidateRequest, CouponValidateResponse } from '../../../core/mod
     <div *ngIf="resp" class="success">
       <p>✅ Đặt hàng thành công. Mã đơn: <b>{{ resp.orderCode }}</b></p>
       <p>Tổng tiền: <b>{{ resp.totalAmount | number:'1.0-0' }} đ</b></p>
-      <button (click)="payCOD()" class="btn-primary mt-3">Xác nhận COD</button>
-      <a [routerLink]="['/orders', resp.orderId]" class="block text-center mt-2 text-rose-600 underline">Xem đơn hàng</a>
+
+      <!-- Nếu COD -->
+      <ng-container *ngIf="model.paymentMethod === 'COD'; else payosTpl">
+        <button (click)="payCOD()" class="btn-primary mt-3">Xác nhận COD</button>
+        <a [routerLink]="['/orders', resp.orderId]" class="block text-center mt-2 text-rose-600 underline">Xem đơn hàng</a>
+      </ng-container>
+
+      <!-- Nếu PayOS -->
+      <ng-template #payosTpl>
+        <button (click)="payPayOS()" class="btn-primary mt-3">Thanh toán qua PayOS</button>
+        <a [routerLink]="['/orders', resp.orderId]" class="block text-center mt-2 text-rose-600 underline">Xem đơn hàng</a>
+        <p class="text-sm text-slate-600 mt-2">* Nếu không tự chuyển hướng, bấm nút trên để mở trang thanh toán.</p>
+      </ng-template>
     </div>
   </section>
   `
@@ -193,8 +205,8 @@ export class CheckoutPage implements OnInit {
     }
     this.cartApi.get().subscribe({
       next: (cart) => {
-        const chosen = cart.items.filter(it => this.itemIds.includes(it.id));
-        this.cartSubtotal = chosen.reduce((s, it) => s + Number(it.lineTotal || 0), 0);
+        const chosen = cart.items.filter((it: any) => this.itemIds.includes(it.id));
+        this.cartSubtotal = chosen.reduce((s: number, it: any) => s + Number(it.lineTotal || 0), 0);
         this.recalcTotals();
       },
       error: () => {
@@ -247,7 +259,7 @@ export class CheckoutPage implements OnInit {
 
   clearCoupon(){
     this.coupon = null;
-    this.couponCode = '';      // <— mở lại ô nhập, bỏ hẳn mã cũ
+    this.couponCode = '';
     this.discount = 0;
     this.recalcTotals();
     localStorage.removeItem('coupon:code');
@@ -257,7 +269,6 @@ export class CheckoutPage implements OnInit {
   submit() {
     if (!this.itemIds.length || this.submitting) return;
 
-    // ưu tiên mã đã validate, nếu không thì lấy ô nhập (trim). Không gửi nếu trống.
     const couponCodeToSend =
       (this.coupon && this.coupon.valid && this.coupon.code)
         ? this.coupon.code
@@ -274,14 +285,52 @@ export class CheckoutPage implements OnInit {
     this.orderSrv.checkout(payload).subscribe({
       next: (r) => {
         this.resp = r;
-        this.submitting = false;
         this.sel.clear();
         localStorage.removeItem('coupon:code');
+
+        // Nếu chọn PayOS → tạo link & redirect ngay
+        if (this.model.paymentMethod === 'PAYOS') {
+          this.orderSrv.createPayOSLink(r.orderId).subscribe({
+            next: (d: any) => {
+              const url = d?.checkoutUrl || '';
+              this.submitting = false;
+              if (url) {
+                window.location.href = url; // chuyển đến trang PayOS
+              } else {
+                alert('Không tạo được link PayOS');
+              }
+            },
+            error: () => {
+              this.submitting = false;
+              alert('Không tạo được link PayOS');
+            }
+          });
+        } else {
+          // COD: hiện block thành công như cũ
+          this.submitting = false;
+        }
       },
       error: () => { this.submitting = false; }
     });
   }
 
+  // Nút fallback khi PayOS không tự redirect (user có thể bấm lại)
+  payPayOS() {
+    if (!this.resp) return;
+    this.orderSrv.createPayOSLink(this.resp.orderId).subscribe({
+      next: (d: any) => {
+        const url = d?.checkoutUrl || '';
+        if (url) {
+          window.location.href = url;
+        } else {
+          alert('Không tạo được link PayOS');
+        }
+      },
+      error: () => alert('Không tạo được link PayOS')
+    });
+  }
+
+  // COD như cũ
   payCOD() {
     if (!this.resp) return;
     this.orderSrv.cod(this.resp.orderId).subscribe(() => {

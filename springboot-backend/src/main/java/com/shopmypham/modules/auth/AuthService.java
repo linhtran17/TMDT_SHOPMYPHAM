@@ -16,11 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-
   private final AuthenticationManager authManager;
   private final UserRepository userRepo;
   private final RoleRepository roleRepo;
@@ -29,30 +27,19 @@ public class AuthService {
 
   @Transactional(readOnly = true)
   public AuthResponse login(LoginRequest req) {
-    authManager.authenticate(
-        new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword()));
-
-    // NẠP SẴN roles (+permissions nếu cần) để tránh lazy
-    var u = userRepo.findByEmailWithRolesAndPerms(req.getEmail())
+    authManager.authenticate(new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword()));
+    var u = userRepo.findByEmailWithRolesAndPermsIgnoreCase(req.getEmail())
         .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
     String token = jwtService.generateToken(u.getEmail());
-
-    // Trả về tên role (không cần permissions ở đây)
     Set<String> roles = (u.getRoles() == null ? Set.<Role>of() : u.getRoles())
-        .stream()
-        .map(Role::getName)
-        .collect(Collectors.toSet());
-
+        .stream().map(Role::getName).collect(Collectors.toSet());
     return new AuthResponse(token, u.getEmail(), roles);
   }
 
   @Transactional
   public Long register(RegisterRequest req) {
-    if (userRepo.existsByEmail(req.getEmail())) {
-      throw new IllegalArgumentException("Email đã tồn tại");
-    }
-
+    if (userRepo.existsByEmail(req.getEmail())) throw new IllegalArgumentException("Email đã tồn tại");
     var user = new User();
     user.setFullName(req.getFullName());
     user.setEmail(req.getEmail());
@@ -60,12 +47,9 @@ public class AuthService {
     user.setEnabled(true);
 
     var roleUser = roleRepo.findByName("ROLE_USER").orElseGet(() -> {
-      var r = new Role();
-      r.setName("ROLE_USER");
-      return roleRepo.save(r);
+      var r = new Role(); r.setName("ROLE_USER"); return roleRepo.save(r);
     });
     user.setRoles(Set.of(roleUser));
-
     return userRepo.save(user).getId();
   }
 }

@@ -1,5 +1,6 @@
+// src/app/core/services/session.service.ts
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, catchError, of } from 'rxjs';
+import { BehaviorSubject, catchError, of, finalize } from 'rxjs'; // ⬅️ thêm finalize
 import { AuthService, SimpleUser } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
@@ -8,13 +9,14 @@ export class SessionService {
   user$ = new BehaviorSubject<SimpleUser | null>(null);
   loading$ = new BehaviorSubject<boolean>(false);
 
-  loadMe() {
-    if (!this.auth.token) { this.user$.next(null); return; }
-    this.loading$.next(true);
-    this.auth.me().pipe(
-      catchError(() => of(null))
-    ).subscribe(u => { this.user$.next(u); this.loading$.next(false); });
-  }
+ loadMe() {
+  if (!this.auth.token) { this.user$.next(null); return; }
+  this.loading$.next(true);
+  this.auth.fetchMe()
+    .pipe(catchError(() => of(null)), finalize(() => this.loading$.next(false)))
+    .subscribe(u => this.user$.next(u));
+}
+
 
   isAdmin(): boolean {
     const u = this.user$.value;

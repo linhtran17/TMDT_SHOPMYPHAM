@@ -603,6 +603,42 @@ ALTER TABLE inventory_movements
   ADD INDEX idx_inv_reversed_of (reversed_of_id),
   ADD INDEX idx_inv_deleted (deleted_at);
 
+////chatbot
+CREATE TABLE faq (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  question     VARCHAR(255) NOT NULL,
+  answer_md    TEXT NOT NULL,        -- soạn sẵn bằng Markdown/HTML ngắn gọn
+  tags         VARCHAR(255) NULL,     -- ví dụ: "vanchuyen,doitra,baohanh"
+  enabled      TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tối ưu tìm kiếm:
+ALTER TABLE faq ADD FULLTEXT ft_faq (question, answer_md, tags);
+CREATE TABLE chat_log (
+  id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+  session_id   VARCHAR(64) NOT NULL,
+  user_id      BIGINT NULL,           -- nếu có auth
+  role         ENUM('user','assistant') NOT NULL,
+  message      TEXT NOT NULL,
+  sources_json JSON NULL,             -- lưu faq dùng, product ids...
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO faq (question, answer_md, tags, enabled, updated_at)
+VALUES
+(
+  'Chính sách đổi trả',
+  '## Chính sách đổi trả\n- Đổi trả trong **7 ngày** với sản phẩm còn nguyên tem, hộp.\n- Miễn phí 1 lần đổi size/màu.\n- Hàng khuyến mãi: **không** áp dụng đổi trả (trừ lỗi NSX).\n- Liên hệ CSKH: 1900 1234.',
+  'doi tra,doi-tra,tra hang,tra-hang,chinh sach,chinh sach doi tra,policy return,return,refund',
+  1,
+  NOW()
+);
+
+
+CREATE INDEX idx_product_active ON products(active);
+CREATE INDEX idx_product_name_lower ON products((lower(name)));
+CREATE INDEX idx_product_sku_lower  ON products((lower(sku)));
+CREATE INDEX idx_product_category   ON products(category_id);
 
 
 
@@ -621,7 +657,34 @@ ALTER TABLE inventory_movements
 
 
 
-/* =========================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================/* =========================================================
+
 
 /* =========================================================
    6) ORDERS / PAYMENTS / SHIPPING / INVENTORY

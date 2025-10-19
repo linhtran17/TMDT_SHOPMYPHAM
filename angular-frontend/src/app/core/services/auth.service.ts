@@ -1,11 +1,12 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, firstValueFrom } from 'rxjs';
 import { map, switchMap, tap, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { User } from '../models/user.model';
+import { ChatService } from '../../core/services/chat.service';
 
-export type SimpleUser = User; // alias, không phải sửa các nơi khác
+export type SimpleUser = User; // alias
 
 interface ApiResponse<T> {
   success: boolean;
@@ -24,7 +25,11 @@ export class AuthService {
   readonly user$ = this._user$.asObservable();
   readonly userSig = signal<SimpleUser | null>(this._user$.value);
 
-  constructor(private http: HttpClient) {
+  private http = inject(HttpClient);
+  private chat = inject(ChatService);
+
+  constructor() {
+    // Nếu có token mà chưa có user cache, gọi /users/me để điền
     if (this.token && !this._user$.value) {
       this.fetchMe().pipe(catchError(() => of(null))).subscribe();
     }
@@ -68,7 +73,18 @@ export class AuthService {
     ).pipe(
       map(r => ('data' in (r as any) ? (r as any).data?.token : (r as any)?.token)),
       tap(token => { if (token) this.saveToken(token); }),
-      switchMap(() => this.fetchMe())
+      switchMap(() => this.fetchMe()),
+      // Đăng nhập user mới => reset hội thoại để không dính lịch sử user cũ
+      tap(async () => {
+        try {
+          // dọn phía FE
+          localStorage.removeItem('chat_session');
+          localStorage.removeItem('chat_messages');
+          localStorage.removeItem('chat_widget_history');
+          // dọn phía BE
+          await firstValueFrom(this.chat.reset());
+        } catch {}
+      })
     );
   }
 
@@ -83,7 +99,6 @@ export class AuthService {
     );
   }
 
-  /** ✅ GỌI ĐÚNG: /api/users/me */
   fetchMe(): Observable<SimpleUser> {
     return this.http.get<ApiResponse<SimpleUser> | SimpleUser>(`${this.api}/users/me`).pipe(
       map(r => (r as any)?.data ?? r),
@@ -91,15 +106,28 @@ export class AuthService {
     );
   }
 
-  /** Logout: xoá server session (nếu có) + JWT + cache FE */
-  logout(silent = false){
-    this.http.post('/api/auth/logout', {}, { withCredentials: true, responseType: 'text' as 'json' })
-      .pipe(catchError(() => of(null)))
-      .subscribe(() => {
-        this.clearToken();
-        this.setCurrentUser(null);
-        if (!silent) location.href = '/login';
-      });
+  /** Logout: xoá server session (nếu có) + JWT + cache + reset chat */
+  async logout(silent = false) {
+    try {
+      // 1) Dọn ngay UI/LocalStorage để chắc chắn
+      this.clearToken();
+      this.setCurrentUser(null);
+      localStorage.removeItem('chat_session');
+      localStorage.removeItem('chat_messages');
+      localStorage.removeItem('chat_widget_history');
+
+      // 2) Gọi reset chat phía BE (không cần withCredentials)
+      await firstValueFrom(this.chat.reset());
+
+      // 3) Gọi API logout (tuỳ cơ chế: cookie thì cần withCredentials)
+      await firstValueFrom(
+        this.http.post('/api/auth/logout', {}, { withCredentials: true, responseType: 'text' as 'json' })
+          .pipe(catchError(() => of(null)))
+      );
+    } catch {}
+    finally {
+      if (!silent) location.href = '/login';
+    }
   }
 
   hasRole(role: string): boolean {

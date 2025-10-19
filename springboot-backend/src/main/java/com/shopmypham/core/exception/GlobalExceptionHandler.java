@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
     return ApiResponse.error(ex.getMessage());
   }
 
-  // 400: vi phạm ràng buộc dữ liệu (FK, unique...) ở tầng Spring DAO
+  // 400: vi phạm ràng buộc dữ liệu (FK,) ở tầng Spring DAO
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ResponseEntity<ApiResponse<Void>> handleFK(DataIntegrityViolationException ex){
     return ResponseEntity.badRequest()

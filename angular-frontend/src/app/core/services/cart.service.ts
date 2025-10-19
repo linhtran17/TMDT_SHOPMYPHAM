@@ -12,8 +12,8 @@ export interface CartItem {
   qty: number;
   unitPrice: number;
   lineTotal: number;
-  available: number;
-  thumbnail?: string | null;
+  available?: number | null;
+    thumbnail?: string | null;
 }
 
 export interface Cart {
@@ -55,12 +55,7 @@ export class CartService {
     );
   }
 
-  /**
-   * ✅ Cập nhật số lượng:
-   * 1) Thử POST /api/cart/items/:id  {quantity}
-   * 2) Nếu lỗi -> PATCH /api/cart/items/:id/qty  {quantity}
-   * 3) Cuối cùng mới thử PUT /api/cart/items/:id  {qty} (để tương thích code cũ)
-   */
+
   /** Đặt lại số lượng bằng cách xóa rồi thêm lại (khỏi cần endpoint update) */
 updateItemQty(itemId: number, newQty: number): Observable<void> {
   const qty = Math.max(1, Number(newQty || 1));
@@ -68,11 +63,13 @@ updateItemQty(itemId: number, newQty: number): Observable<void> {
     map(() => void 0),
     tap(() => this.get().subscribe({ error: () => {} })),
     catchError(err => {
-      this.toast.error?.('Cập nhật số lượng thất bại');
+      const msg = err?.error?.message || 'Cập nhật số lượng thất bại';
+      this.toast.error?.(msg);
       return throwError(() => err);
     })
   );
 }
+
 
 
 

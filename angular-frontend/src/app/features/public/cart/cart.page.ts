@@ -9,6 +9,8 @@ import { ProductService } from '../../../core/services/product.service';
 import { environment } from '../../../../environments/environment';
 
 import { CouponService } from '../../../core/services/coupon.service';
+import { ToastService } from '../../../shared/toast/toast';
+
 import { CouponValidateRequest, CouponValidateResponse } from '../../../core/models/coupon.model';
 
 @Component({
@@ -59,42 +61,89 @@ import { CouponValidateRequest, CouponValidateResponse } from '../../../core/mod
 
     <div class="layout" *ngIf="cart; else loading">
       <!-- LEFT -->
-      <div class="card">
-        <div class="row-top" *ngIf="cart.items?.length">
-          <label class="inline-flex items-center">
-            <input type="checkbox" class="chk" [checked]="allChecked()" (change)="toggleAll($event)" />
-            <span>Chọn tất cả</span>
-          </label>
-          <button class="text-rose-600 text-sm" (click)="clearSelection()">Bỏ chọn</button>
+     <div class="card">
+  <div class="row-top" *ngIf="cart.items?.length">
+    <label class="inline-flex items-center">
+      <input type="checkbox"
+             class="chk"
+             [checked]="allChecked()"
+             (change)="toggleAll($event)" />
+      <span>Chọn tất cả</span>
+    </label>
+    <button class="text-rose-600 text-sm" (click)="clearSelection()">Bỏ chọn</button>
+  </div>
+
+  <ng-container *ngIf="cart.items?.length; else empty">
+    <div class="item" *ngFor="let it of cart.items">
+      <!-- Chọn dòng: disable nếu hết hàng -->
+      <input type="checkbox"
+             class="chk"
+             [disabled]="(it.available ?? 0) === 0"
+             [checked]="isChecked(it.id)"
+             (change)="toggle(it.id, $event)"/>
+
+      <!-- Ảnh -->
+      <img class="thumb"
+           [src]="thumbOf(it)"
+           (error)="onImgErr($event)"
+           [alt]="it.productName || 'Product image'">
+
+      <!-- Nội dung -->
+      <div class="flex-1">
+        <div class="name">{{ it.productName }}</div>
+        <div class="sku">SKU: {{ it.productSku }}</div>
+
+        <!-- Trạng thái tồn kho -->
+        <div class="text-sm mt-0.5"
+             [style.color]="(it.available ?? 0) === 0 ? '#dc2626' : '#64748b'">
+          <ng-container *ngIf="(it.available ?? 0) === 0">Hết hàng</ng-container>
+          <ng-container *ngIf="(it.available ?? 0) > 0">Còn {{ it.available }} sp</ng-container>
         </div>
 
-        <ng-container *ngIf="cart.items?.length; else empty">
-          <div class="item" *ngFor="let it of cart.items">
-            <input type="checkbox" class="chk" [checked]="isChecked(it.id)" (change)="toggle(it.id, $event)"/>
-            <img class="thumb" [src]="thumbOf(it)" (error)="onImgErr($event)" alt="">
-            <div class="flex-1">
-              <div class="name">{{ it.productName }}</div>
-              <div class="sku">SKU: {{ it.productSku }}</div>
-              <div class="price">{{ it.unitPrice | number:'1.0-0' }} đ</div>
-              <div class="qty-box">
-                <button class="btn-qty" (click)="onQtyChange(it, it.qty-1)">-</button>
-                <input type="number" class="w-14 text-center border rounded" [value]="it.qty" min="1"
-                       (change)="onQtyChange(it, $any($event.target).value)"/>
-                <button class="btn-qty" (click)="onQtyChange(it, it.qty+1)">+</button>
-                <button class="remove" (click)="remove(it)">Xoá</button>
-              </div>
-            </div>
-            <div class="text-right font-medium">= {{ it.lineTotal | number:'1.0-0' }} đ</div>
-          </div>
-        </ng-container>
+        <!-- Giá -->
+        <div class="price mt-1">{{ it.unitPrice | number:'1.0-0' }} đ</div>
 
-        <ng-template #empty>
-          <div class="empty">
-            <p>Giỏ hàng của bạn đang trống 😢</p>
-            <a routerLink="/" class="btn btn-primary mt-4">Tiếp tục mua sắm</a>
-          </div>
-        </ng-template>
+        <!-- Số lượng: disable khi hết hàng; kẹp max bằng tồn -->
+        <div class="qty-box">
+          <button class="btn-qty"
+                  [disabled]="(it.available ?? 0) === 0 || it.qty <= 1"
+                  (click)="onQtyChange(it, it.qty - 1)">-</button>
+
+          <input type="number"
+                 class="w-14 text-center border rounded"
+                 [disabled]="(it.available ?? 0) === 0"
+                 [value]="it.qty"
+                 min="1"
+                 [max]="it.available || null"
+                 (change)="onQtyChange(it, $any($event.target).value)"/>
+
+          <button class="btn-qty"
+                  [disabled]="(it.available ?? 0) === 0 || (it.available != null && it.qty >= it.available)"
+                  (click)="onQtyChange(it, it.qty + 1)">+</button>
+
+          <button class="remove" (click)="remove(it)">Xoá</button>
+        </div>
+
+        <!-- Cảnh báo vượt tồn (hiếm khi thấy vì đã kẹp, nhưng hiển thị nếu BE trả trạng thái lệch) -->
+        <div class="text-xs text-amber-600 mt-1"
+             *ngIf="it.available != null && it.qty > it.available">
+          Bạn đang chọn vượt quá tồn (còn {{ it.available }}). Sẽ tự giảm về mức tối đa.
+        </div>
       </div>
+
+      <!-- Thành tiền -->
+      <div class="text-right font-medium">= {{ it.lineTotal | number:'1.0-0' }} đ</div>
+    </div>
+  </ng-container>
+
+  <ng-template #empty>
+    <div class="empty">
+      <p>Giỏ hàng của bạn đang trống</p>
+      <a routerLink="/" class="btn btn-primary mt-4">Tiếp tục mua sắm</a>
+    </div>
+  </ng-template>
+</div>
+
 
       <!-- RIGHT -->
       <div class="card">
@@ -146,6 +195,8 @@ export class CartPage implements OnInit {
   private router = inject(Router);
   private products = inject(ProductService);
   private couponApi = inject(CouponService);
+  private toast = inject(ToastService);
+
 
   cart?: Cart;
   selectedIds = signal<number[]>([]);
@@ -243,20 +294,32 @@ export class CartPage implements OnInit {
 
   // ===== số lượng & xoá =====
   onQtyChange(it: any, value: any){
-    // optimistic UI
-    const newQty = Math.max(1, Number(value || 1));
-    if (!isFinite(newQty)) return;
+  const desired = Math.max(1, Number(value || 1));
+  if (!isFinite(desired)) return;
+  const max = Number.isFinite(Number(it.available)) ? Number(it.available) : Infinity;
 
-    // cập nhật ngay giao diện
-    it.qty = newQty;
-    it.lineTotal = Number(it.unitPrice || 0) * newQty;
+   if (desired > max) {
+    if (isFinite(max)) {
+      this.cartApi.updateItemQty(it.id, max).subscribe({
+        next: () => this.reload(),
+        error: () => this.reload()
+      });
+      it.qty = max;
+      it.lineTotal = Number(it.unitPrice || 0) * max;
+      // báo lỗi rõ ràng
+this.toast.error?.(`Chỉ còn ${max} sản phẩm trong kho`);
+      // Nếu bạn không gắn toast service lên window, dùng:
+      // this.products (không có), => tốt nhất: inject ToastService vào CartPage nếu cần
+    }
+    return;
+  } it.qty = desired;
+  it.lineTotal = Number(it.unitPrice || 0) * desired;
 
-    // gọi API
-    this.cartApi.updateItemQty(it.id, newQty).subscribe({
-      next: () => this.reload(),
-      error: () => this.reload() // reload để trả về trạng thái đúng từ BE nếu lỗi
-    });
-  }
+  this.cartApi.updateItemQty(it.id, desired).subscribe({
+    next: () => this.reload(),
+    error: () => this.reload()
+  });
+}
 
   remove(it: any){
     this.cartApi.removeItem(it.id).subscribe({

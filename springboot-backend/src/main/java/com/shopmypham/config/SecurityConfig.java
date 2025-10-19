@@ -1,4 +1,3 @@
-// src/main/java/com/shopmypham/config/SecurityConfig.java
 package com.shopmypham.config;
 
 import com.shopmypham.modules.auth.GoogleOAuth2UserService;
@@ -62,21 +61,21 @@ public class SecurityConfig {
     this.passwordEncoder = passwordEncoder;
   }
 
-  // ===== UserDetailsService: lấy user + roles/permissions theo email (ignore-case) =====
+  // ===== UserDetailsService =====
   @Bean
   @Transactional(readOnly = true)
   public UserDetailsService userDetailsService() {
     return (String emailRaw) -> {
-      String email = (emailRaw == null) ? "" : emailRaw.trim();
+      final String email = (emailRaw == null) ? "" : emailRaw.trim();
 
       var u = userRepo.findByEmailWithRolesAndPermsIgnoreCase(email)
-          .or(() -> userRepo.findByEmailWithRolesAndPerms(email))
           .or(() -> userRepo.findByEmailIgnoreCase(email))
           .or(() -> userRepo.findByEmail(email))
           .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
       var authorities = new ArrayList<SimpleGrantedAuthority>();
       var roles = (u.getRoles() == null) ? Set.<Role>of() : u.getRoles();
+
       for (Role r : roles) {
         if (r != null && r.getName() != null) {
           String springRole = r.getName().startsWith("ROLE_") ? r.getName() : "ROLE_" + r.getName();
@@ -93,7 +92,6 @@ public class SecurityConfig {
 
       boolean locked = (u.getEnabled() != null && !u.getEnabled());
 
-      // Dùng fully-qualified để tránh clash với entity User của bạn
       return org.springframework.security.core.userdetails.User
           .withUsername(u.getEmail())
           .password(u.getPassword())
@@ -169,13 +167,19 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.POST,
           "/api/auth/login",
           "/api/auth/register",
-          "/api/auth/logout"
+          "/api/auth/logout",
+           "/api/chat/ask",
+               "/api/chat/reset",
+
+            "/api/payments/payos/create/**",
+  "/api/payments/payos/webhook"
         ).permitAll()
         .requestMatchers(HttpMethod.GET,
           "/api/banners/public",
           "/api/news/public/**",
           "/api/categories/tree",
           "/api/products/**",
+          "/api/products/public/**",
           "/api/flash-sales/**",
           "/api/inventory/stock/**",
           "/api/coupons/public"
@@ -189,11 +193,9 @@ public class SecurityConfig {
     return http.build();
   }
 
-  // ===== Web chain — OAuth2/OIDC login; sau khi login sẽ redirect về FE kèm JWT =====
+  // ===== Web chain — OAuth2/OIDC login =====
   @Bean @Order(2)
   public SecurityFilterChain webChain(HttpSecurity http) throws Exception {
-
-    // OIDC inline (không tạo file mới): upsert user + gán authorities từ DB
     OidcUserService inlineOidc = new OidcUserService() {
       @Override
       public org.springframework.security.oauth2.core.oidc.user.OidcUser loadUser(
@@ -217,8 +219,8 @@ public class SecurityConfig {
       )
       .oauth2Login(oauth -> oauth
         .userInfoEndpoint(u -> u
-          .oidcUserService(inlineOidc)           // OIDC (Google)
-          .userService(googleOAuth2UserService)  // OAuth2 fallback (nếu provider không OIDC)
+          .oidcUserService(inlineOidc)
+          .userService(googleOAuth2UserService)
         )
         .successHandler(oAuth2LoginSuccessHandler)
         .failureHandler((req, res, ex) -> {

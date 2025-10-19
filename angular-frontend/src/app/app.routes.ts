@@ -40,7 +40,8 @@ export const routes: Routes = [
       { path: 'contact', loadComponent: () => import('./features/public/contact/contact-page.component').then(m => m.ContactPageComponent) },
       { path: 'account', loadComponent: () => import('./features/public/account/account.page').then(m => m.AccountPage), canActivate: [authGuard] },
       { path: 'account/edit', loadComponent: () => import('./features/public/account/account-edit.page.ts').then(m => m.default), canActivate: [authGuard] },
-
+{ path: 'checkout/success', loadComponent: () => import('./features/public/checkout/checkout-success.page').then(m => m.CheckoutSuccessPage) },
+  { path: 'checkout/cancel', loadComponent: () => import('./features/public/checkout/checkout-cancel.page').then(m => m.CheckoutCancelPage) },
 
       // Cần đăng nhập
       { path: 'cart', loadComponent: () => import('./features/public/cart/cart.page').then(m => m.CartPage), canActivate: [authGuard] },
