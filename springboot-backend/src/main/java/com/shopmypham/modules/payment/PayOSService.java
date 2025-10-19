@@ -134,7 +134,7 @@ public class PayOSService {
 
     // Xử lý nghiệp vụ
     try {
-      long orderCode = data.getOrderCode(); // bằng id order
+      long orderCode = data.getOrderCode();
       var od = orderRepo.findById(orderCode)
           .orElseThrow(() -> new NotFoundException("Order không tồn tại"));
 
@@ -145,7 +145,6 @@ public class PayOSService {
         isPaid = false; // không cập nhật paid nếu lệch số tiền
       }
 
-      // Lấy transaction theo ref nếu có (đã tạo khi createPaymentLink) để UPDATE; nếu không có thì tạo mới
       var tx = txRepo.findByTransactionRef(ref).orElseGet(() -> {
         var t = new PaymentTransaction();
         t.setOrderId(od.getId());
