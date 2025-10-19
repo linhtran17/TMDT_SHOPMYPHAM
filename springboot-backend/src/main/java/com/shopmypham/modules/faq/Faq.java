@@ -24,6 +24,7 @@ public class Faq {
   @Column(nullable = false)
   private Boolean enabled = true;
 
+  //
   @UpdateTimestamp
   private Timestamp updatedAt;
 }

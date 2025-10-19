@@ -449,12 +449,12 @@ public class ChatService {
 
   private Long currentUserId(){ return null; } // tuỳ bạn tích hợp SecurityContext
 
-  // --------- ParsedSlots ---------
+
   private record ParsedSlots(
       String keyword, Long categoryId, String catSlug, List<Long> childIds,
       Integer priceMin, Integer priceMax, String categoryName,
       String attrName, String attrVal
-  ){
+){
     ParsedSlots withPriceMin(Integer v){ return new ParsedSlots(keyword, categoryId, catSlug, childIds, v, priceMax, categoryName, attrName, attrVal); }
     ParsedSlots withPriceMax(Integer v){ return new ParsedSlots(keyword, categoryId, catSlug, childIds, priceMin, v, categoryName, attrName, attrVal); }
     ParsedSlots withCategoryName(String name){ return new ParsedSlots(keyword, categoryId, catSlug, childIds, priceMin, priceMax, name, attrName, attrVal); }

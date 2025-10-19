@@ -17,5 +17,6 @@ public interface FaqRepository extends JpaRepository<Faq, Long> {
      )
      ORDER BY f.updatedAt DESC
   """)
+  //
   List<Faq> searchTop(String kw, Pageable pageable);
 }

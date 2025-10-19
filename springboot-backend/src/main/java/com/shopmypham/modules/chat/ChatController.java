@@ -22,7 +22,7 @@ public class ChatController {
 
   @PostMapping("/reset")
   public ResponseEntity<?> reset(){
-    // Hiện chỉ để FE clear local state; có thể mở rộng xoá log theo session nếu muốn.
+    // Hiện chỉ để FE clear local state; 
     return ResponseEntity.ok(Map.of("ok", true, "messages", List.of()));
   }
 }

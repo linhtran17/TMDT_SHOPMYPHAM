@@ -54,6 +54,8 @@ public class GeminiClient implements ChatLLMClient {
       String url = String.format(
         "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
         model, apiKey
+
+        
       );
 
       HttpRequest httpReq = HttpRequest.newBuilder()

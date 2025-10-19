@@ -19,4 +19,6 @@ public class ChatLog {
 
   @CreationTimestamp @Column(name="created_at", updatable=false)
   private Timestamp createdAt;
+
+  
 }

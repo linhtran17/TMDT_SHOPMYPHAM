@@ -12,7 +12,7 @@ public class AskRequest {
   private String catSlug;
   private List<Long> childIds;
 
-  // getters/setters
+
   public String getMessage() { return message; }
   public void setMessage(String message) { this.message = message; }
 
